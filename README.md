@@ -17,8 +17,10 @@ CaveDarkness:
 - splits the big rock shells (`Rock1..5_Cave`, `cave_entrance`, `camp_base`) into ~10 light bands, so the outside of the rock stays lit
   and the inside fades to dark from the mouth inward
   (light = depth darkness — MaxDarkness reached at DarknessGradient metres, quick fall-off — lifted back up where the sky is visible). The game's meshes aren't CPU-readable, so copies ship in `cavemeshes.bin`;
-- cave floors are the terrain, which can't take a per-object ambient: inside each cave a thin copy of the terrain surface (0.5 m grid, the terrain's
-  own material and splat map, 3 cm above it) is drawn in light bands instead; the real terrain stays underneath for collisions;
+- cave floors are the terrain, which is one object per map tile and can't take a per-object ambient: every terrain is drawn with
+  `CaveDarkness/Terrain` (in `cavedarkness.bundle`, built from `Unity/`), Unity's own `Nature/Terrain/Standard` whose ambient (sky light +
+  reflections) is multiplied by a 0.5 m light map baked per cave. Sun, flashlight, fires and lamps still light the floor. Without the bundle
+  the floors stay lit;
 - adds a black reflection probe over the inside (no sky reflections on wet rock in the dark);
 - holds the eye adaptation (post-processing AutoExposure, if a profile has it on) while you are in the dark part, so it doesn't brighten the cave back up;
 - NPCs, items, cars and the player (body, arms, held gear) take the light of their spot while they are in a cave and fade back outside.
@@ -27,7 +29,7 @@ Point lights (lamps, fires, your flashlight) are untouched, so they now matter i
 
 ## Install
 
-Copy the `CaveDarkness` folder (CaveDarkness.dll + cavemeshes.bin) into `BepInEx\plugins\`.
+Copy the `CaveDarkness` folder (CaveDarkness.dll + cavemeshes.bin + cavedarkness.bundle) into `BepInEx\plugins\`.
 
 ## Config (`BepInEx\config\com.denis.apocalypter.cavedarkness.cfg`)
 
@@ -45,3 +47,5 @@ Each baked cave logs one line (`cave Cave_3(Clone): 2 rock mesh(es) -> ... light
 
 `./build.sh` with mono `mcs` (`MANAGED` / `BEPCORE` env vars point at the game's `Managed` and `BepInEx\core` folders), or `dotnet build`
 (deploys DLL + cavemeshes.bin to `BepInEx\plugins\CaveDarkness`). `tools/export_cavemeshes.py` regenerates `cavemeshes.bin` from the game's assets.
+
+The shader bundle: open `Unity/` in Unity 2020.3.49f1, menu **CaveDarkness > Build shader bundle** (see `Unity/README.md`).

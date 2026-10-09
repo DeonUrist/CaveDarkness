@@ -40,7 +40,7 @@ namespace CaveDarkness
                     var mt = ter != null ? ter.materialTemplate : null;
                     sb.Append("   terrain ").Append(ter != null ? ter.name : "?").Append(" material ").Append(mt != null ? mt.name + " / " + mt.shader.name : "none")
                       .Append(", layers ").Append(ter != null && ter.terrainData != null ? ter.terrainData.terrainLayers.Length : 0)
-                      .Append(", floor patch ").Append(cave.FloorInfo ?? "none").Append('\n');
+                      .Append(", floor map ").Append(cave.FloorInfo ?? "none").Append('\n');
                 }
                 foreach (var r in t.GetComponentsInChildren<Renderer>(true)) Describe(sb, r, cave);
                 if (t.parent != null) foreach (var r in t.parent.GetComponents<Renderer>()) Describe(sb, r, cave);

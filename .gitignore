@@ -10,3 +10,12 @@ obj/
 # BepInEx / game artefacts
 LogOutput.log
 *.cfg
+# Unity shader project
+Unity/Library/
+Unity/Temp/
+Unity/Logs/
+Unity/obj/
+Unity/UserSettings/
+Unity/Bundle/
+Unity/*.csproj
+Unity/*.sln

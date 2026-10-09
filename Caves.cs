@@ -27,6 +27,8 @@ namespace CaveDarkness
         public readonly List<Mesh> Made = new List<Mesh>();
         public readonly List<Material> MadeMats = new List<Material>();
         public string FloorInfo;
+        public Texture2D Map;          // terrain light map (TerrainDark)
+        public Vector4 MapRect;
         public readonly List<GameObject> MadeGos = new List<GameObject>();
         public readonly List<KeyValuePair<MeshFilter, Mesh>> Swapped = new List<KeyValuePair<MeshFilter, Mesh>>();
         public readonly List<KeyValuePair<Renderer, Transform>> Anchored = new List<KeyValuePair<Renderer, Transform>>();
@@ -69,6 +71,7 @@ namespace CaveDarkness
         public static void Reset()
         {
             foreach (var c in All) Undo(c);
+            TerrainDark.Restore();
             All.Clear(); _known.Clear(); _baking = false; _nextScan = 0f;
             Dyn.RestoreAll();
         }
@@ -115,6 +118,7 @@ namespace CaveDarkness
                 {
                     foreach (var m in c.Made) if (m != null) Object.Destroy(m);
                     foreach (var m in c.MadeMats) if (m != null) Object.Destroy(m);
+                    if (c.Map != null) Object.Destroy(c.Map);
                     All.RemoveAt(i); continue;
                 }
                 // the sky's ambient changes over the day: keep the caves near the player in step (far ones catch up when approached)
@@ -262,7 +266,7 @@ namespace CaveDarkness
             if (c.Root != null)
             {
                 Begin();
-                var fe = Floor.Build(c);
+                var fe = TerrainDark.Build(c);
                 while (true)
                 {
                     bool more;
@@ -455,6 +459,7 @@ namespace CaveDarkness
             foreach (var m in c.Made) if (m != null) Object.Destroy(m);
             foreach (var m in c.MadeMats) if (m != null) Object.Destroy(m);
             c.MadeMats.Clear();
+            if (c.Map != null) { Object.Destroy(c.Map); c.Map = null; }
             c.Parts.Clear(); c.Made.Clear(); c.MadeGos.Clear(); c.Swapped.Clear(); c.Anchored.Clear(); c.Lods.Clear();
             c.Ready = false;
         }
