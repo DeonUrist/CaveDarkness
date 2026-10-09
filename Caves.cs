@@ -10,6 +10,7 @@ namespace CaveDarkness
     {
         public Renderer R;
         public float Open;          // sky openness 0..1
+        public float Dist;          // metres from the cave entrance
         public bool Ours;           // a band renderer we made (destroyed on undo) vs a game renderer (restored on undo)
         public LightProbeUsage OrigUsage;
         public bool HadBlock;
@@ -29,6 +30,8 @@ namespace CaveDarkness
         public readonly List<KeyValuePair<Renderer, Transform>> Anchored = new List<KeyValuePair<Renderer, Transform>>();
         public readonly List<KeyValuePair<LODGroup, LOD[]>> Lods = new List<KeyValuePair<LODGroup, LOD[]>>();
         public Transform InAnchor, OutAnchor;
+        public Vector3 Mouth;                       // the Cave_IN trigger
+        public float Dist(Vector3 p) { return Vector3.Distance(p, Mouth); }
         public int AppliedVersion = -1;
         public readonly Dictionary<long, float> Grid = new Dictionary<long, float>();
 
@@ -56,7 +59,7 @@ namespace CaveDarkness
         private static bool _baking;
         private static Cave _bakingCave;
         private static readonly MaterialPropertyBlock _mpb = new MaterialPropertyBlock();
-        private const int Bands = 10;
+        private const int Bands = 16;
         private const float MaxEdge = 2f;            // subdivide rock meshes to triangles this small (m) before sorting them into bands
         private const double BudgetMs = 1.5;         // bake time per frame
 
@@ -67,11 +70,29 @@ namespace CaveDarkness
             Dyn.RestoreAll();
         }
 
+        private static float _rebakeAt = -1f;
+
+        // MaxDarkness / DarknessGradient decide which triangles go into which band, so the caves are baked again (about 0.1 s CPU each),
+        // 1 s after the last change (the Mods-menu sliders fire many changes).
         public static void OnSettingsChanged()
         {
             if (!Plugin.Enabled.Value) { Reset(); return; }
-            foreach (var c in All) c.AppliedVersion = -1;   // Darkness changed: re-apply
+            foreach (var c in All) c.AppliedVersion = -1;
             Dyn.Invalidate();
+            _rebakeAt = Time.unscaledTime + 1f;
+        }
+
+        private static void Rebake()
+        {
+            _rebakeAt = -1f;
+            if (_baking) { _rebakeAt = Time.unscaledTime + 0.5f; return; }
+            foreach (var c in All)
+            {
+                if (!c.Ready) continue;
+                Undo(c);
+                c.HasInner = false; c.Failed = false; c.AppliedVersion = -1;
+            }
+            Plugin.Verbose("settings changed: caves are baked again");
         }
 
         public static void Tick()
@@ -91,6 +112,7 @@ namespace CaveDarkness
                 // the sky's ambient changes over the day: keep the caves near the player in step (far ones catch up when approached)
                 if (c.Ready && c.AppliedVersion != Sky.AmbientVersion && c.Box.SqrDistance(cp) < 500f * 500f) Apply(c);
             }
+            if (_rebakeAt > 0f && now >= _rebakeAt) Rebake();
             if (now >= _nextScan) { _nextScan = now + 2f; Scan(); }
             if (_baking && now - _bakeBeat > 15f)
             {
@@ -109,7 +131,7 @@ namespace CaveDarkness
             {
                 var root = RootOf(g.transform);
                 if (root == null || !_known.Add(root.GetInstanceID())) continue;
-                var c = new Cave { Root = root.gameObject, Name = root.name };
+                var c = new Cave { Root = root.gameObject, Name = root.name, Mouth = g.transform.position };
                 All.Add(c);
                 Plugin.Verbose("found " + Path(root));
             }
@@ -209,10 +231,11 @@ namespace CaveDarkness
                 {
                     var p = r.bounds.center;
                     float o = Sky.Point(p);
-                    float l = Sky.Light(o);
+                    float dd = c.Dist(p);
+                    float l = Sky.Light(o, dd);
                     if (l < Sky.Outside)
                     {
-                        c.Parts.Add(new Part { R = r, Open = o, OrigUsage = r.lightProbeUsage, HadBlock = r.HasPropertyBlock() });
+                        c.Parts.Add(new Part { R = r, Open = o, Dist = dd, OrigUsage = r.lightProbeUsage, HadBlock = r.HasPropertyBlock() });
                         single++;
                         if (l < 0.5f) Inner(c, p);
                     }
@@ -249,17 +272,28 @@ namespace CaveDarkness
                     c.InAnchor.SetParent(root, false);
                     c.InAnchor.position = c.Inner.center;
                     c.MadeGos.Add(c.InAnchor.gameObject);
-                    foreach (var p in c.Parts) if (p.Ours && Sky.Light(p.Open) < 0.5f && p.R != null) p.R.probeAnchor = c.InAnchor;
+                    foreach (var p in c.Parts) if (p.Ours && Sky.Light(p.Open, p.Dist) < 0.5f && p.R != null) p.R.probeAnchor = c.InAnchor;
                 }
                 c.Ready = true;
                 Apply(c);
+                float lmin = 1f, lmax = 0f;
+                foreach (var p in c.Parts) { float l = Sky.Light(p.Open, p.Dist); if (l < lmin) lmin = l; if (l > lmax) lmax = l; }
                 Plugin.Log.LogInfo("cave " + c.Name + ": " + split + " rock mesh(es) -> " + tris + " triangles in " + bands + " light bands, " + single +
                                    " other object(s) darkened, " + (Sky.Rays - rays0) + " rays, " + cpu.ToString("0") + " ms over " + frames + " frames (" +
-                                   total.Elapsed.TotalSeconds.ToString("0.0") + " s)" + (c.HasInner ? "" : ", no dark inside found"));
+                                   total.Elapsed.TotalSeconds.ToString("0.0") + " s)" + (c.HasInner ? "" : ", no dark inside found") +
+                                   ", light " + lmin.ToString("0.00") + ".." + lmax.ToString("0.00") + ", deepest part " +
+                                   DeepestDist(c).ToString("0") + " m from the entrance");
                 if (_firstLog) { _firstLog = false; Plugin.Log.LogInfo(Sky.AmbientInfo()); }
             }
             c.Baking = false;
             _baking = false;
+        }
+
+        private static float DeepestDist(Cave c)
+        {
+            float m = 0f;
+            foreach (var p in c.Parts) if (p.Dist > m) m = p.Dist;
+            return m;
         }
 
         private static bool _firstLog = true;
@@ -297,16 +331,19 @@ namespace CaveDarkness
             var outside = new List<int>();
             var band = new List<int>[Bands];
             var bandOpen = new float[Bands];
+            var bandDist = new float[Bands];
             for (int t = 0; t < nt; t++)
             {
                 int a = wm.T[t * 3], b = wm.T[t * 3 + 1], d = wm.T[t * 3 + 2];
                 float o = (open[a] + open[b] + open[d]) / 3f;
-                float l = Sky.Light(o);
+                var ctr = (wp[a] + wp[b] + wp[d]) / 3f;
+                float dd = c.Dist(ctr);
+                float l = Sky.Light(o, dd);
                 if (l >= Sky.Outside) { outside.Add(t * 3); continue; }
                 int k = Mathf.Clamp((int)(l * Bands), 0, Bands - 1);
                 if (band[k] == null) band[k] = new List<int>();
-                band[k].Add(t * 3); bandOpen[k] += o;
-                if (l < 0.5f) Inner(c, (wp[a] + wp[b] + wp[d]) / 3f);
+                band[k].Add(t * 3); bandOpen[k] += o; bandDist[k] += dd;
+                if (l < 0.5f) Inner(c, ctr);
             }
             _lastTris = nt;
             if (outside.Count == nt) yield break;   // all open: leave it as it is
@@ -336,7 +373,7 @@ namespace CaveDarkness
                 br.reflectionProbeUsage = r.reflectionProbeUsage;
                 br.probeAnchor = c.OutAnchor;   // switched to the inside anchor once the inside is known (dark bands only)
                 br.enabled = r.enabled;
-                c.Parts.Add(new Part { R = br, Open = bandOpen[k] / band[k].Count, Ours = true });
+                c.Parts.Add(new Part { R = br, Open = bandOpen[k] / band[k].Count, Dist = bandDist[k] / band[k].Count, Ours = true });
                 made.Add(br);
                 _lastBands++;
             }
@@ -373,7 +410,7 @@ namespace CaveDarkness
         {
             c.AppliedVersion = Sky.AmbientVersion;
             foreach (var p in c.Parts)
-                if (p.R != null) Sky.Apply(p.R, _mpb, Sky.Light(p.Open));
+                if (p.R != null) Sky.Apply(p.R, _mpb, Sky.Light(p.Open, p.Dist));
         }
 
         private static void Undo(Cave c)

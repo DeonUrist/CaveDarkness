@@ -20,11 +20,11 @@ namespace CaveDarkness
     {
         public const string GUID = "com.denis.apocalypter.cavedarkness";
         public const string NAME = "CaveDarkness";
-        public const string VERSION = "0.1.0";
+        public const string VERSION = "0.2.0";
 
         internal static ManualLogSource Log;
         internal static ConfigEntry<bool> Enabled, VerboseLog;
-        internal static ConfigEntry<float> Darkness;
+        internal static ConfigEntry<float> MaxDarkness, DarknessGradient;
         internal static string Folder;
 
         private static GameObject _runner;
@@ -36,12 +36,17 @@ namespace CaveDarkness
             Config.Bind("General", "Apocasetter", true, "Show this mod in the Apocasetter Mods menu");
             Enabled = Config.Bind("General", "Enabled", true,
                 "Caves are dark inside instead of the whole world dimming when you walk into one");
-            Darkness = Config.Bind("General", "Darkness", 0.03f, new ConfigDescription(
-                "Ambient light left in the deepest part of a cave (0 = pitch black, 1 = as bright as outside). Lamps and your flashlight still light it",
+            MaxDarkness = Config.Bind("General", "MaxDarkness", 0.97f, new ConfigDescription(
+                "How dark the deepest part of a cave gets (1 = pitch black, 0 = as bright as outside). Lamps and your flashlight still light it",
                 new AcceptableValueRange<float>(0f, 1f)));
+            DarknessGradient = Config.Bind("General", "DarknessGradient", 12f, new ConfigDescription(
+                "Metres from the cave entrance to the full darkness (smaller = it gets dark sooner)",
+                new AcceptableValueRange<float>(1f, 60f)));
             VerboseLog = Config.Bind("Debug", "VerboseLog", false, "Log every cave that gets baked and what was darkened");
             Enabled.SettingChanged += (s, e) => Caves.OnSettingsChanged();
-            Darkness.SettingChanged += (s, e) => Caves.OnSettingsChanged();
+            MaxDarkness.SettingChanged += (s, e) => Caves.OnSettingsChanged();
+            DarknessGradient.SettingChanged += (s, e) => Caves.OnSettingsChanged();
+            DropOrphan("General", "Darkness");   // 0.1.0 setting, replaced by MaxDarkness
 
             var h = new Harmony(GUID);
             var setProp = AccessTools.TypeByName("HutongGames.PlayMaker.Actions.SetProperty");
@@ -57,6 +62,17 @@ namespace CaveDarkness
             SceneManager.sceneLoaded += (s, m) => { EnsureRunner(); Caves.Reset(); };
             EnsureRunner();
             Log.LogInfo(NAME + " " + VERSION + " loaded");
+        }
+
+        private void DropOrphan(string section, string key)
+        {
+            try
+            {
+                var prop = AccessTools.Property(typeof(ConfigFile), "OrphanedEntries");
+                var dict = prop != null ? prop.GetValue(Config, null) as System.Collections.Generic.Dictionary<ConfigDefinition, string> : null;
+                if (dict != null && dict.Remove(new ConfigDefinition(section, key))) Config.Save();
+            }
+            catch { }
         }
 
         // The Player's CaveDarkness FSM is the only user of SetProperty on Azure's environmentIntensity.
@@ -86,9 +102,10 @@ namespace CaveDarkness
         private void Awake() { I = this; }
         private void Update()
         {
-            if (!Plugin.Enabled.Value) return;
+            if (!Plugin.Enabled.Value) { Exposure.Restore(); return; }
             Caves.Tick();
             Dyn.Tick();
+            Exposure.Tick();
         }
     }
 }

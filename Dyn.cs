@@ -32,6 +32,8 @@ namespace CaveDarkness
         private static readonly MaterialPropertyBlock _mpb = new MaterialPropertyBlock();
         private static float _next;
 
+        public static float CameraLight = 1f;   // ambient light at the camera (1 = outside)
+
         public static void Invalidate() { foreach (var t in _t.Values) t.Applied = -1f; }
 
         public static void RestoreAll()
@@ -65,6 +67,7 @@ namespace CaveDarkness
                 }
             }
             // the player's view: arms, held items and the flashlight model hang under the camera's root
+            CameraLight = 1f;
             var camCave = Caves.At(cp);
             if (camCave != null) Mark(cam.transform.root, camCave, cp, true, now);
 
@@ -74,11 +77,12 @@ namespace CaveDarkness
                 var t = kv.Value;
                 if (t.Root == null) { _drop.Add(kv.Key); continue; }
                 float target = 1f;
-                if (t.Seen && t.Cave != null) target = Sky.Light(t.Cave.OpenAt(t.Sample));
+                if (t.Seen && t.Cave != null) target = Sky.Light(t.Cave.OpenAt(t.Sample), t.Cave.Dist(t.Sample));
                 t.Cur += (target - t.Cur) * 0.45f;
                 if (Mathf.Abs(target - t.Cur) < 0.01f) t.Cur = target;
                 if (!t.Seen && t.Cur >= Sky.Outside) { Release(t); _drop.Add(kv.Key); continue; }
                 if (t.Seen && now >= t.NextRefresh) Refresh(t, now);
+                if (t.IsCamera && t.Seen) CameraLight = t.Cur;
                 if (Mathf.Abs(t.Cur - t.Applied) > 0.005f || t.AppliedVersion != Sky.AmbientVersion)
                 {
                     t.Applied = t.Cur; t.AppliedVersion = Sky.AmbientVersion;
@@ -94,7 +98,7 @@ namespace CaveDarkness
             if (!_t.TryGetValue(root, out t))
             {
                 // only start tracking once it really is in the dark
-                if (Sky.Light(c.OpenAt(sample)) >= Sky.Outside) return;
+                if (Sky.Light(c.OpenAt(sample), c.Dist(sample)) >= Sky.Outside) return;
                 t = new Tracked { Root = root };
                 _t[root] = t;
                 Refresh(t, now);

@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Plugin.cs;MeshBank.cs;Sky.cs;Caves.cs;Dyn.cs" />
+    <Compile Include="Plugin.cs;MeshBank.cs;Sky.cs;Caves.cs;Dyn.cs;Exposure.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,6 +26,7 @@
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(ManagedDir)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(ManagedDir)\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.TerrainModule"><HintPath>$(ManagedDir)\UnityEngine.TerrainModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.Postprocessing.Runtime"><HintPath>$(ManagedDir)\Unity.Postprocessing.Runtime.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="PlayMaker"><HintPath>$(ManagedDir)\PlayMaker.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 

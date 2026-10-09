@@ -5,5 +5,5 @@ mcs -nostdlib -noconfig -target:library -langversion:latest -optimize+ -out:${1:
   -r:$M/mscorlib.dll -r:$M/System.dll -r:$M/System.Core.dll -r:$M/netstandard.dll \
   -r:$B/BepInEx.dll -r:$B/0Harmony.dll \
   -r:$M/UnityEngine.dll -r:$M/UnityEngine.CoreModule.dll -r:$M/UnityEngine.PhysicsModule.dll -r:$M/UnityEngine.TerrainModule.dll \
-  -r:$M/PlayMaker.dll \
-  Plugin.cs MeshBank.cs Sky.cs Caves.cs Dyn.cs
+  -r:$M/PlayMaker.dll -r:$M/Unity.Postprocessing.Runtime.dll \
+  Plugin.cs MeshBank.cs Sky.cs Caves.cs Dyn.cs Exposure.cs

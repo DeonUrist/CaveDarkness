@@ -65,10 +65,16 @@ namespace CaveDarkness
             return tot > 0f ? esc / tot : 1f;
         }
 
-        public static float Light(float open)
+        // dist = metres from the cave entrance. Depth sets the darkness (MaxDarkness reached at DarknessGradient metres, quick fall-off
+        // near the mouth); sky openness lifts it back up where the sky is visible (outside of the rock, mouth area).
+        public static float Light(float open, float dist)
         {
-            float d = Plugin.Darkness.Value;
-            return d + (1f - d) * Mathf.Pow(Mathf.Clamp01(open / OpenFull), Gamma);
+            float floor = 1f - Plugin.MaxDarkness.Value;
+            float t = Mathf.Clamp01(dist / Mathf.Max(0.5f, Plugin.DarknessGradient.Value));
+            float u = 1f - t;
+            float depth = floor + (1f - floor) * u * u;
+            float sky = Mathf.Pow(Mathf.Clamp01(open / OpenFull), Gamma);
+            return Mathf.Lerp(depth, 1f, sky);
         }
 
         // ---- ambient SH ----
