@@ -46,6 +46,7 @@ namespace CaveDarkness
             float now = Time.unscaledTime;
             if (now >= _nextSwap) { _nextSwap = now + 2f; SwapTerrains(); }
             if (now >= _nextGlobals) { _nextGlobals = now + 0.25f; Globals(); }
+            else PushRects();   // every frame: the world rect of a map moves with each floating-origin jump
         }
 
         private static void SwapTerrains()
@@ -109,6 +110,12 @@ namespace CaveDarkness
             Shader.SetGlobalFloat(CountId, n);
         }
 
+        private static void PushRects()
+        {
+            for (int i = 0; i < _near.Count && i < 4; i++)
+                if (_near[i] != null && _near[i].Root != null) Shader.SetGlobalVector(RectId[i], _near[i].MapRect);
+        }
+
         // Bake step: the light map of the terrain inside this cave (light at the terrain surface, as for the rocks).
         public static IEnumerator Build(Cave c)
         {
@@ -124,11 +131,12 @@ namespace CaveDarkness
                 if (mouth.x >= tp0.x && mouth.x <= tp0.x + s0.x && mouth.z >= tp0.z && mouth.z <= tp0.z + s0.z) { ter = t; break; }
             }
             if (ter == null) { c.FloorInfo = "no terrain under the cave"; yield break; }
-            var td = ter.terrainData; var tp = ter.transform.position; var size = td.size;
+            var td = ter.terrainData; var size = td.size;
 
             // the whole structure + 2 m (0.3.2 covered only the dark inside, so the half-lit floor at the mouth and along the rect's border
             // jumped to full light where the map ended - a bright edge on the ground)
-            var b = c.Box;
+            // grid in the anchor's frame (this loop spans frames, an origin jump may happen meanwhile); world = local + anchor, read per point
+            var b = c.BoxLocal;
             float x0 = b.min.x - 2f, x1 = b.max.x + 2f, z0 = b.min.z - 2f, z1 = b.max.z + 2f;
             float step = Mathf.Max(Step, Mathf.Max(x1 - x0, z1 - z0) / MaxCells);
             int w = Mathf.Max(2, Mathf.CeilToInt((x1 - x0) / step) + 1), h = Mathf.Max(2, Mathf.CeilToInt((z1 - z0) / step) + 1);
@@ -144,7 +152,8 @@ namespace CaveDarkness
                 for (int i = 0; i < w; i++)
                 {
                     int k = j * w + i;
-                    float x = x0 + i * step, z = z0 + j * step;
+                    var an = c.AnchorPos; var tp = ter.transform.position;
+                    float x = an.x + x0 + i * step, z = an.z + z0 + j * step;
                     lv[k] = 1f;
                     float u = (x - tp.x) / size.x, v = (z - tp.z) / size.z;
                     if (u >= 0f && u <= 1f && v >= 0f && v <= 1f)   // (a cave on a tile border: the part on the next tile stays lit)
@@ -175,7 +184,7 @@ namespace CaveDarkness
                     byte by = (byte)Mathf.Clamp(Mathf.RoundToInt(l * 255f), 0, 255);
                     px[j * w + i] = new Color32(by, by, by, 255);
                 }
-            if (dark > 0) ClearGrass(c, ter, cov, x0, z0, step, w, h);
+            if (dark > 0) ClearGrass(c, ter, cov, x0 + c.AnchorPos.x, z0 + c.AnchorPos.z, step, w, h);
             if (dark == 0) { c.FloorInfo = "terrain inside is open to the sky"; yield break; }
             var tex = new Texture2D(w, h, TextureFormat.RGBA32, false, true);
             tex.name = "CaveDarkness map " + c.Name;
@@ -185,7 +194,7 @@ namespace CaveDarkness
             tex.Apply(false, true);
             c.Map = tex;
             // texel centres sit on the grid points
-            c.MapRect = new Vector4(x0 - step * 0.5f, z0 - step * 0.5f, 1f / (step * w), 1f / (step * h));
+            c.MapRectLocal = new Vector4(x0 - step * 0.5f, z0 - step * 0.5f, 1f / (step * w), 1f / (step * h));
             c.FloorInfo = w + "x" + h + " map (" + step.ToString("0.00") + " m), " + dark + " points under the rock" +
                           (c.GrassCleared > 0 ? ", " + c.GrassCleared + " grass cells removed" : "");
         }

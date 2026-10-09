@@ -23,8 +23,20 @@ namespace CaveDarkness
         public GameObject Root;
         public string Name;
         public bool Ready, Baking, Failed;
-        public Bounds Box;                          // whole structure
-        public bool HasInner; public Bounds Inner;  // the dark inside (light < 0.5)
+        // 0.5.2 FLOATING ORIGIN: the game (NWH FloatingOrigin on the Player) moves every root object by the camera position whenever the camera
+        // is 1,000 m from the origin. Nothing in the world moves, but world coordinates jump. Positions we keep are therefore stored in the
+        // frame of the cave's top-level object (MapMagic, which carries every tile and POI) and turned into world coordinates when read:
+        // Anchor.position changes by exactly the jump, so every read is correct, even in the frame of a jump.
+        public Transform Anchor;
+        public Vector3 AnchorPos { get { return Anchor != null ? Anchor.position : Vector3.zero; } }
+        public Bounds BoxLocal, InnerLocal;
+        public Bounds Box                           // whole structure (world coordinates, now)
+        {
+            get { var b = BoxLocal; b.center += AnchorPos; return b; }
+            set { var b = value; b.center -= AnchorPos; BoxLocal = b; }
+        }
+        public bool HasInner;                       // the dark inside (light < 0.5)
+        public Bounds Inner { get { var b = InnerLocal; b.center += AnchorPos; return b; } }
         public readonly List<Part> Parts = new List<Part>();
         public readonly List<Mesh> Made = new List<Mesh>();
         public readonly List<Material> MadeMats = new List<Material>();
@@ -32,7 +44,8 @@ namespace CaveDarkness
         public Texture2D Map;          // terrain light map (TerrainDark)
         public readonly List<GrassBackup> Grass = new List<GrassBackup>();
         public int GrassCleared;
-        public Vector4 MapRect;
+        public Vector4 MapRectLocal;   // xy = corner in the anchor's frame
+        public Vector4 MapRect { get { var a = AnchorPos; return new Vector4(MapRectLocal.x + a.x, MapRectLocal.y + a.z, MapRectLocal.z, MapRectLocal.w); } }
         public readonly List<GameObject> MadeGos = new List<GameObject>();
         public readonly List<KeyValuePair<MeshFilter, Mesh>> Swapped = new List<KeyValuePair<MeshFilter, Mesh>>();
         public readonly List<KeyValuePair<Renderer, Transform>> Anchored = new List<KeyValuePair<Renderer, Transform>>();
@@ -135,7 +148,7 @@ namespace CaveDarkness
             {
                 var root = RootOf(g.transform);
                 if (root == null || !_known.Add(root.GetInstanceID())) continue;
-                var c = new Cave { Root = root.gameObject, Name = root.name, MouthT = g.transform };
+                var c = new Cave { Root = root.gameObject, Name = root.name, MouthT = g.transform, Anchor = root.root };
                 All.Add(c);
                 Plugin.Verbose("found " + Path(root));
             }
@@ -354,8 +367,9 @@ namespace CaveDarkness
 
         private static void Inner(Cave c, Vector3 p)
         {
-            if (!c.HasInner) { c.Inner = new Bounds(p, Vector3.zero); c.HasInner = true; }
-            else c.Inner.Encapsulate(p);
+            p -= c.AnchorPos;
+            if (!c.HasInner) { c.InnerLocal = new Bounds(p, Vector3.zero); c.HasInner = true; }
+            else c.InnerLocal.Encapsulate(p);
         }
 
         private static IEnumerator Split(Cave c, MeshRenderer r, MeshFilter mf, MeshData data)
@@ -372,11 +386,12 @@ namespace CaveDarkness
             var same = new Dictionary<long, float>();   // UV-seam duplicates share position and normal
             for (int i = 0; i < vc; i++)
             {
-                wp[i] = tr.TransformPoint(wm.P[i]);
+                var wpi = tr.TransformPoint(wm.P[i]);
+                wp[i] = wpi - c.AnchorPos;   // anchor frame (this loop can span an origin jump)
                 var wn = tr.TransformDirection(wm.N[i]).normalized;
                 long key = Key(wm.P[i], wm.N[i]);
                 float o;
-                if (!same.TryGetValue(key, out o)) { o = c.Field.SampleSurface(wp[i], wn); same[key] = o; }   // (now: metres to the sky)
+                if (!same.TryGetValue(key, out o)) { o = c.Field.SampleSurface(wpi, wn); same[key] = o; }   // (now: metres to the sky)
                 open[i] = o;
                 if (Over()) yield return null;
             }
@@ -396,7 +411,7 @@ namespace CaveDarkness
                 int k = Mathf.Clamp((int)(l * Bands), 0, Bands - 1);
                 if (band[k] == null) band[k] = new List<int>();
                 band[k].Add(t * 3); bandOpen[k] += o; bandDist[k] += dd;
-                if (l < 0.5f) Inner(c, ctr);
+                if (l < 0.5f) Inner(c, ctr + c.AnchorPos);
             }
             _lastTris = nt;
             if (outside.Count == nt) yield break;   // all open: leave it as it is

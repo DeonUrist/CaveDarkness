@@ -12,7 +12,9 @@ namespace CaveDarkness
     // Rocks, floor, objects and the player all read the same field, so there are no seams between them.
     internal class Field
     {
-        public Vector3 Origin;        // corner of voxel (0,0,0)
+        public Transform Anchor;      // the cave's top-level object (MapMagic): moves with every floating-origin jump
+        public Vector3 OriginLocal;   // corner of voxel (0,0,0) in the anchor's frame
+        public Vector3 Origin { get { return OriginLocal + (Anchor != null ? Anchor.position : Vector3.zero); } }   // world, now
         public float V;               // voxel size
         public int NX, NY, NZ;
         public byte[] Q;              // 255 = rock, 254 = air not reachable from the sky, else distance in Unit metres
@@ -91,7 +93,8 @@ namespace CaveDarkness
             b.Expand(8f);   // 4 m each side
             float vol = b.size.x * b.size.y * b.size.z;
             f.V = Mathf.Max(0.5f, Mathf.Pow(vol / 500000f, 1f / 3f));
-            f.Origin = b.min;
+            f.Anchor = c.Anchor;
+            f.OriginLocal = b.min - c.AnchorPos;
             f.NX = Mathf.Max(2, Mathf.CeilToInt(b.size.x / f.V));
             f.NY = Mathf.Max(2, Mathf.CeilToInt(b.size.y / f.V));
             f.NZ = Mathf.Max(2, Mathf.CeilToInt(b.size.z / f.V));
