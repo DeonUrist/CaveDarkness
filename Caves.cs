@@ -41,10 +41,6 @@ namespace CaveDarkness
         public Transform MouthT;                    // the Cave_IN trigger (read live: MapMagic moves the structure after spawning it)
         public Vector3 Mouth { get { return MouthT != null ? MouthT.position : (Root != null ? Root.transform.position : Vector3.zero); } }
         public Field Field;                         // 0.5.0: distance through the air to open sky, per voxel
-        // MapMagic places a structure after spawning it (and may move it again): bake only once it has stood still for 2 s, and
-        // bake again if it moves afterwards (0.5.0 baked one cave at its spawn spot -> the field missed it, the cave stayed vanilla)
-        public int Retries;
-        public Vector3 LastPos, BakedPos; public Quaternion LastRot, BakedRot; public float StillSince;
         // metres through the air from this point to open sky (0 = under the sky, 1000 = no air path)
         public float Dist(Vector3 p) { return Field != null ? Field.Sample(p) : 0f; }
         public int AppliedVersion = -1;
@@ -118,17 +114,6 @@ namespace CaveDarkness
                     All.RemoveAt(i); continue;
                 }
                 // the sky's ambient changes over the day: keep the caves near the player in step (far ones catch up when approached)
-                var rt = c.Root.transform;
-                if ((rt.position - c.LastPos).sqrMagnitude > 0.0025f || Quaternion.Angle(rt.rotation, c.LastRot) > 0.2f)
-                {
-                    c.LastPos = rt.position; c.LastRot = rt.rotation; c.StillSince = now;
-                }
-                if (c.Ready && ((rt.position - c.BakedPos).sqrMagnitude > 0.0025f || Quaternion.Angle(rt.rotation, c.BakedRot) > 0.2f))
-                {
-                    Plugin.Log.LogInfo("cave " + c.Name + " moved after its bake - baking it again");
-                    Undo(c); c.Field = null; c.HasInner = false; c.Failed = false; c.AppliedVersion = -1;
-                    continue;
-                }
                 if (c.Ready && c.AppliedVersion != Sky.AmbientVersion && c.Box.SqrDistance(cp) < 500f * 500f) Apply(c);
             }
             if (_rebakeAt > 0f && now >= _rebakeAt) Rebake();
@@ -150,8 +135,7 @@ namespace CaveDarkness
             {
                 var root = RootOf(g.transform);
                 if (root == null || !_known.Add(root.GetInstanceID())) continue;
-                var c = new Cave { Root = root.gameObject, Name = root.name, MouthT = g.transform,
-                                   LastPos = root.position, LastRot = root.rotation, StillSince = Time.unscaledTime };
+                var c = new Cave { Root = root.gameObject, Name = root.name, MouthT = g.transform };
                 All.Add(c);
                 Plugin.Verbose("found " + Path(root));
             }
@@ -186,7 +170,6 @@ namespace CaveDarkness
             foreach (var c in All)
             {
                 if (c.Ready || c.Failed || c.Root == null || !c.Root.activeInHierarchy) continue;
-                if (Time.unscaledTime - c.StillSince < 2f) continue;   // still being placed
                 float d = (c.Root.transform.position - at).sqrMagnitude;
                 if (d < bd) { bd = d; best = c; }
             }
@@ -205,7 +188,6 @@ namespace CaveDarkness
         private static IEnumerator Bake(Cave c)
         {
             c.Baking = true;
-            c.BakedPos = c.Root.transform.position; c.BakedRot = c.Root.transform.rotation;
             var total = Stopwatch.StartNew();
             double cpu = 0; int frames = 0, rays0 = Sky.Rays;
             Sky.Init();
@@ -354,14 +336,6 @@ namespace CaveDarkness
                                    ", light " + lmin.ToString("0.00") + ".." + lmax.ToString("0.00") + ", deepest part " +
                                    DeepestDist(c).ToString("0") + " m from the entrance; floor: " + c.FloorInfo);
                 if (_firstLog) { _firstLog = false; Plugin.Log.LogInfo(Sky.AmbientInfo()); }
-                // a cave rock that came out all bright: its colliders were most likely not there yet (tile still loading) -> try again
-                if (split > 0 && !c.HasInner && c.Retries < 3)
-                {
-                    c.Retries++;
-                    Plugin.Log.LogInfo("cave " + c.Name + " has no dark inside - baking it again in 8 s (try " + c.Retries + " of 3)");
-                    Undo(c); c.Field = null; c.Failed = false; c.AppliedVersion = -1;
-                    c.StillSince = Time.unscaledTime + 6f;
-                }
             }
             c.Baking = false;
             _baking = false;
