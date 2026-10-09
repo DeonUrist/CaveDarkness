@@ -20,10 +20,10 @@ namespace CaveDarkness
     {
         public const string GUID = "com.denis.apocalypter.cavedarkness";
         public const string NAME = "CaveDarkness";
-        public const string VERSION = "0.2.0";
+        public const string VERSION = "0.2.1";
 
         internal static ManualLogSource Log;
-        internal static ConfigEntry<bool> Enabled, VerboseLog;
+        internal static ConfigEntry<bool> Enabled, VerboseLog, TintTest;
         internal static ConfigEntry<float> MaxDarkness, DarknessGradient;
         internal static string Folder;
 
@@ -43,6 +43,10 @@ namespace CaveDarkness
                 "Metres from the cave entrance to the full darkness (smaller = it gets dark sooner)",
                 new AcceptableValueRange<float>(1f, 60f)));
             VerboseLog = Config.Bind("Debug", "VerboseLog", false, "Log every cave that gets baked and what was darkened");
+            TintTest = Config.Bind("Debug", "TintTest", false,
+                "Debug: everything this mod darkens is lit flat red instead (bright red = full light, black = full darkness), to see what the mod reaches. " +
+                "While on, entering a cave also logs what is under the crosshair and the render settings");
+            TintTest.SettingChanged += (s, e) => Caves.OnSettingsChanged();
             Enabled.SettingChanged += (s, e) => Caves.OnSettingsChanged();
             MaxDarkness.SettingChanged += (s, e) => Caves.OnSettingsChanged();
             DarknessGradient.SettingChanged += (s, e) => Caves.OnSettingsChanged();
@@ -106,6 +110,7 @@ namespace CaveDarkness
             Caves.Tick();
             Dyn.Tick();
             Exposure.Tick();
+            Diag.Tick();
         }
     }
 }

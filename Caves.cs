@@ -25,12 +25,15 @@ namespace CaveDarkness
         public bool HasInner; public Bounds Inner;  // the dark inside (light < 0.5)
         public readonly List<Part> Parts = new List<Part>();
         public readonly List<Mesh> Made = new List<Mesh>();
+        public readonly List<Material> MadeMats = new List<Material>();
+        public string FloorInfo;
         public readonly List<GameObject> MadeGos = new List<GameObject>();
         public readonly List<KeyValuePair<MeshFilter, Mesh>> Swapped = new List<KeyValuePair<MeshFilter, Mesh>>();
         public readonly List<KeyValuePair<Renderer, Transform>> Anchored = new List<KeyValuePair<Renderer, Transform>>();
         public readonly List<KeyValuePair<LODGroup, LOD[]>> Lods = new List<KeyValuePair<LODGroup, LOD[]>>();
         public Transform InAnchor, OutAnchor;
-        public Vector3 Mouth;                       // the Cave_IN trigger
+        public Transform MouthT;                    // the Cave_IN trigger (read live: MapMagic moves the structure after spawning it)
+        public Vector3 Mouth { get { return MouthT != null ? MouthT.position : (Root != null ? Root.transform.position : Vector3.zero); } }
         public float Dist(Vector3 p) { return Vector3.Distance(p, Mouth); }
         public int AppliedVersion = -1;
         public readonly Dictionary<long, float> Grid = new Dictionary<long, float>();
@@ -108,7 +111,12 @@ namespace CaveDarkness
             for (int i = All.Count - 1; i >= 0; i--)
             {
                 var c = All[i];
-                if (c.Root == null) { foreach (var m in c.Made) if (m != null) Object.Destroy(m); All.RemoveAt(i); continue; }
+                if (c.Root == null)
+                {
+                    foreach (var m in c.Made) if (m != null) Object.Destroy(m);
+                    foreach (var m in c.MadeMats) if (m != null) Object.Destroy(m);
+                    All.RemoveAt(i); continue;
+                }
                 // the sky's ambient changes over the day: keep the caves near the player in step (far ones catch up when approached)
                 if (c.Ready && c.AppliedVersion != Sky.AmbientVersion && c.Box.SqrDistance(cp) < 500f * 500f) Apply(c);
             }
@@ -131,7 +139,7 @@ namespace CaveDarkness
             {
                 var root = RootOf(g.transform);
                 if (root == null || !_known.Add(root.GetInstanceID())) continue;
-                var c = new Cave { Root = root.gameObject, Name = root.name, Mouth = g.transform.position };
+                var c = new Cave { Root = root.gameObject, Name = root.name, MouthT = g.transform };
                 All.Add(c);
                 Plugin.Verbose("found " + Path(root));
             }
@@ -179,7 +187,7 @@ namespace CaveDarkness
         private static bool _bf;
         private static void Begin() { _bakeBeat = Time.unscaledTime; _bf = Physics.queriesHitBackfaces; Physics.queriesHitBackfaces = true; _sw.Reset(); _sw.Start(); }
         private static void End() { Physics.queriesHitBackfaces = _bf; }
-        private static bool Over() { return _sw.Elapsed.TotalMilliseconds > BudgetMs; }
+        internal static bool Over() { return _sw.Elapsed.TotalMilliseconds > BudgetMs; }
 
         private static IEnumerator Bake(Cave c)
         {
@@ -250,6 +258,24 @@ namespace CaveDarkness
             }
             cpu += _sw.Elapsed.TotalMilliseconds; End();
 
+            // the terrain floor inside
+            if (c.Root != null)
+            {
+                Begin();
+                var fe = Floor.Build(c);
+                while (true)
+                {
+                    bool more;
+                    try { more = fe.MoveNext(); } catch (System.Exception ex) { Plugin.Log.LogWarning("floor of " + c.Name + ": " + ex); c.FloorInfo = "failed"; break; }
+                    if (!more) break;
+                    cpu += _sw.Elapsed.TotalMilliseconds; frames++; End();
+                    yield return null;
+                    if (c.Root == null || !Plugin.Enabled.Value) { _baking = false; c.Baking = false; yield break; }
+                    Begin();
+                }
+                cpu += _sw.Elapsed.TotalMilliseconds; End();
+            }
+
             if (c.Root != null)
             {
                 if (c.HasInner)
@@ -282,7 +308,7 @@ namespace CaveDarkness
                                    " other object(s) darkened, " + (Sky.Rays - rays0) + " rays, " + cpu.ToString("0") + " ms over " + frames + " frames (" +
                                    total.Elapsed.TotalSeconds.ToString("0.0") + " s)" + (c.HasInner ? "" : ", no dark inside found") +
                                    ", light " + lmin.ToString("0.00") + ".." + lmax.ToString("0.00") + ", deepest part " +
-                                   DeepestDist(c).ToString("0") + " m from the entrance");
+                                   DeepestDist(c).ToString("0") + " m from the entrance; floor: " + c.FloorInfo);
                 if (_firstLog) { _firstLog = false; Plugin.Log.LogInfo(Sky.AmbientInfo()); }
             }
             c.Baking = false;
@@ -427,6 +453,8 @@ namespace CaveDarkness
             foreach (var g in c.MadeGos) if (g != null) Object.Destroy(g);
             foreach (var p in c.Parts) if (p.Ours && p.R != null) Object.Destroy(p.R.gameObject);
             foreach (var m in c.Made) if (m != null) Object.Destroy(m);
+            foreach (var m in c.MadeMats) if (m != null) Object.Destroy(m);
+            c.MadeMats.Clear();
             c.Parts.Clear(); c.Made.Clear(); c.MadeGos.Clear(); c.Swapped.Clear(); c.Anchored.Clear(); c.Lods.Clear();
             c.Ready = false;
         }

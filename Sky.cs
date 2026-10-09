@@ -106,7 +106,14 @@ namespace CaveDarkness
 
         public static void Apply(Renderer r, MaterialPropertyBlock mpb, float light)
         {
-            _one[0] = _amb * light;
+            if (Plugin.TintTest.Value)
+            {
+                // debug: flat ambient, red = darkened by this mod (bright red = light 1, black = light 0)
+                var sh = new SphericalHarmonicsL2();
+                sh.AddAmbientLight(new Color(light * 2f, 0f, 0f));
+                _one[0] = sh;
+            }
+            else _one[0] = _amb * light;
             r.GetPropertyBlock(mpb);
             mpb.CopySHCoefficientArraysFrom(_one);
             r.SetPropertyBlock(mpb);
