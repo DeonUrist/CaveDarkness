@@ -13,10 +13,10 @@ float4 _CaveRect0, _CaveRect1, _CaveRect2, _CaveRect3;   // xy = world x/z of th
 float _CaveCount;
 
 // 1 outside the map's rectangle (sampled anyway, no branch: keeps the gradients valid)
-#define CAVE_SAMPLE(tex, r, w, a) { float2 uv = (w.xz - r.xy) * r.zw; \
-    half inside = step(0, uv.x) * step(0, uv.y) * step(uv.x, 1) * step(uv.y, 1); \
-    half v = UNITY_SAMPLE_TEX2D_SAMPLER(tex, _CaveMap0, saturate(uv)).r; \
-    a = min(a, lerp(1, v, inside)); }
+#define CAVE_SAMPLE(CM_TEX, CM_RECT, CM_W, CM_OUT) { float2 cmUv = (CM_W.xz - CM_RECT.xy) * CM_RECT.zw; \
+    half cmIn = step(0, cmUv.x) * step(0, cmUv.y) * step(cmUv.x, 1) * step(cmUv.y, 1); \
+    half cmV = UNITY_SAMPLE_TEX2D_SAMPLER(CM_TEX, _CaveMap0, saturate(cmUv)).x; \
+    CM_OUT = min(CM_OUT, lerp(1, cmV, cmIn)); }
 
 half CaveAmbient(float3 w)
 {
