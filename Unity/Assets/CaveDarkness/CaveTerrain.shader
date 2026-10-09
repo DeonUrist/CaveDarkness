@@ -14,7 +14,7 @@ Shader "CaveDarkness/Terrain" {
         }
 
         CGPROGRAM
-        #pragma surface surf CaveStandard vertex:SplatmapVert finalcolor:SplatmapFinalColor addshadow fullforwardshadows exclude_path:deferred exclude_path:prepass
+        #pragma surface surf CaveStandard vertex:SplatmapVert finalcolor:SplatmapFinalColor addshadow fullforwardshadows exclude_path:deferred exclude_path:prepass nolightmap nodynlightmap nodirlightmap
         #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap forwardadd
         #pragma multi_compile_fog
         #pragma target 3.0

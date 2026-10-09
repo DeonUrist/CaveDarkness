@@ -12,6 +12,8 @@ public static class CaveDarknessBuild
     public static void Build()
     {
         KeepAllVariants();
+        // the game renders in linear colour space; shaders compiled for gamma would come out wrong
+        if (PlayerSettings.colorSpace != ColorSpace.Linear) PlayerSettings.colorSpace = ColorSpace.Linear;
         Directory.CreateDirectory("Bundle");
         var b = new AssetBundleBuild
         {

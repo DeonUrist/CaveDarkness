@@ -11,7 +11,7 @@ Shader "CaveDarkness/Terrain-AddPass" {
         }
 
         CGPROGRAM
-        #pragma surface surf CaveStandard decal:add vertex:SplatmapVert finalcolor:SplatmapFinalColor fullforwardshadows nometa exclude_path:deferred exclude_path:prepass
+        #pragma surface surf CaveStandard decal:add vertex:SplatmapVert finalcolor:SplatmapFinalColor fullforwardshadows nometa exclude_path:deferred exclude_path:prepass nolightmap nodynlightmap nodirlightmap
         #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap forwardadd
         #pragma multi_compile_fog
         #pragma target 3.0
