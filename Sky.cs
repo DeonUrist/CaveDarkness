@@ -33,7 +33,6 @@ namespace CaveDarkness
             foreach (var t in Terrain.activeTerrains) if (t != null) Mask |= 1 << t.gameObject.layer;
         }
 
-        // Surface at p with normal n: cosine-weighted share of its hemisphere that is open.
         private static bool Hit(Vector3 o, Vector3 d)
         {
             Rays++;
@@ -44,11 +43,43 @@ namespace CaveDarkness
         // pieces, not to the sky (the mouth's own light comes from the depth term).
         private const float LowUnderRoof = 0.25f;
 
+        // Roof: straight up or 3 of 4 rays tilted 25 deg from up hit something (one crack in the ceiling doesn't make it "open sky").
+        private static bool Roof(Vector3 o)
+        {
+            if (Hit(o, Vector3.up)) return true;
+            const float cu = 0.906f, su = 0.423f;
+            int h = 0;
+            if (Hit(o, new Vector3(su, cu, 0f))) h++;
+            if (Hit(o, new Vector3(-su, cu, 0f))) h++;
+            if (Hit(o, new Vector3(0f, cu, su))) h++;
+            if (h == 0) return false;
+            if (Hit(o, new Vector3(0f, cu, -su))) h++;
+            return h >= 3;
+        }
+
+        // Enclosed = inside the cave (or inside the rock itself, between its outer and inner faces): under a roof and walled in -
+        // 6 of 8 directions just above the horizon hit something within MaxDist. Enclosed spots get no sky light at all; their light is
+        // the depth-from-the-entrance term only (bright near the mouth, MaxDarkness deeper in).
+        private static readonly Vector3[] _ring = MakeRing();
+        private static Vector3[] MakeRing()
+        {
+            var r = new Vector3[8];
+            for (int i = 0; i < 8; i++) { float a = i * Mathf.PI / 4f; r[i] = new Vector3(Mathf.Cos(a), 0.17f, Mathf.Sin(a)).normalized; }
+            return r;
+        }
+        private static bool Walled(Vector3 o)
+        {
+            int miss = 0;
+            for (int i = 0; i < 8; i++) if (!Hit(o, _ring[i]) && ++miss > 2) return false;
+            return true;
+        }
+
         // Surface at p with normal n: cosine-weighted share of its hemisphere that is open.
         public static float Surface(Vector3 p, Vector3 n)
         {
             Vector3 o = p + n * 0.06f;
-            bool roof = Hit(o, Vector3.up);
+            bool roof = Roof(o);
+            if (roof && Walled(o)) return 0f;
             if (!roof && !Hit(o, n))
             {
                 // quick out (an outer surface, most of a rock) - but only if 4 rays tilted 35 deg off the normal escape too:
@@ -72,7 +103,8 @@ namespace CaveDarkness
         // A point in space (object centre): share of the directions from just below the horizon upward that are open.
         public static float Point(Vector3 p)
         {
-            bool roof = Hit(p, Vector3.up);
+            bool roof = Roof(p);
+            if (roof && Walled(p)) return 0f;
             float tot = 0f, esc = 0f;
             for (int i = 0; i < _dirs.Length; i++)
             {
