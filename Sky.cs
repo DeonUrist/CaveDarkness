@@ -34,20 +34,37 @@ namespace CaveDarkness
         }
 
         // Surface at p with normal n: cosine-weighted share of its hemisphere that is open.
+        private static bool Hit(Vector3 o, Vector3 d)
+        {
+            Rays++;
+            return Physics.Raycast(o, d, MaxDist, Mask, QueryTriggerInteraction.Ignore);
+        }
+
+        // Rays escaping this low under a roof count as blocked: they sneak out under the foot of the walls / through gaps between rock
+        // pieces, not to the sky (the mouth's own light comes from the depth term).
+        private const float LowUnderRoof = 0.25f;
+
+        // Surface at p with normal n: cosine-weighted share of its hemisphere that is open.
         public static float Surface(Vector3 p, Vector3 n)
         {
             Vector3 o = p + n * 0.06f;
-            // quick out: straight along the normal and straight up both reach the sky -> an outer surface (most of a rock)
-            Rays += 2;
-            if (!Physics.Raycast(o, n, MaxDist, Mask, QueryTriggerInteraction.Ignore) &&
-                (n.y < -0.3f || !Physics.Raycast(o, Vector3.up, MaxDist, Mask, QueryTriggerInteraction.Ignore))) return 1f;
+            bool roof = Hit(o, Vector3.up);
+            if (!roof && !Hit(o, n))
+            {
+                // quick out (an outer surface, most of a rock) - but only if 4 rays tilted 35 deg off the normal escape too:
+                // one or two rays alone slip through cracks and lit whole interior ledges in 0.3.x
+                Vector3 t1 = Vector3.Cross(n, Mathf.Abs(n.y) < 0.9f ? Vector3.up : Vector3.right).normalized, t2 = Vector3.Cross(n, t1);
+                const float ca = 0.819f, sa = 0.574f;
+                if (!Hit(o, n * ca + t1 * sa) && !Hit(o, n * ca - t1 * sa) && !Hit(o, n * ca + t2 * sa) && !Hit(o, n * ca - t2 * sa)) return 1f;
+            }
             float tot = 0f, esc = 0f;
             for (int i = 0; i < _dirs.Length; i++)
             {
                 float c = Vector3.Dot(_dirs[i], n);
                 if (c <= 0.05f) continue;
-                tot += c; Rays++;
-                if (!Physics.Raycast(o, _dirs[i], MaxDist, Mask, QueryTriggerInteraction.Ignore)) esc += c;
+                tot += c;
+                if (roof && _dirs[i].y < LowUnderRoof) continue;
+                if (!Hit(o, _dirs[i])) esc += c;
             }
             return tot > 0f ? esc / tot : 1f;
         }
@@ -55,18 +72,18 @@ namespace CaveDarkness
         // A point in space (object centre): share of the directions from just below the horizon upward that are open.
         public static float Point(Vector3 p)
         {
+            bool roof = Hit(p, Vector3.up);
             float tot = 0f, esc = 0f;
             for (int i = 0; i < _dirs.Length; i++)
             {
                 if (_dirs[i].y < -0.15f) continue;
-                tot += 1f; Rays++;
-                if (!Physics.Raycast(p, _dirs[i], MaxDist, Mask, QueryTriggerInteraction.Ignore)) esc += 1f;
+                tot += 1f;
+                if (roof && _dirs[i].y < LowUnderRoof) continue;
+                if (!Hit(p, _dirs[i])) esc += 1f;
             }
             return tot > 0f ? esc / tot : 1f;
         }
 
-        // dist = metres from the cave entrance. Depth sets the darkness (MaxDarkness reached at DarknessGradient metres, quick fall-off
-        // near the mouth); sky openness lifts it back up where the sky is visible (outside of the rock, mouth area).
         public static float Light(float open, float dist)
         {
             float floor = 1f - Plugin.MaxDarkness.Value;

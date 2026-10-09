@@ -20,7 +20,7 @@ namespace CaveDarkness
     {
         public const string GUID = "com.denis.apocalypter.cavedarkness";
         public const string NAME = "CaveDarkness";
-        public const string VERSION = "0.3.1";
+        public const string VERSION = "0.3.2";
 
         internal static ManualLogSource Log;
         internal static ConfigEntry<bool> Enabled, VerboseLog, TintTest;
@@ -111,6 +111,7 @@ namespace CaveDarkness
             Dyn.Tick();
             Exposure.Tick();
             TerrainDark.Tick();
+            SunCut.Tick();
             Diag.Tick();
         }
     }

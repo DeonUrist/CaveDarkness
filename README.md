@@ -21,6 +21,8 @@ CaveDarkness:
   `CaveDarkness/Terrain` (in `cavedarkness.bundle`, built from `Unity/`), Unity's own `Nature/Terrain/Standard` whose ambient (sky light +
   reflections) is multiplied by a 0.5 m light map baked per cave. Sun, flashlight, fires and lamps still light the floor. Without the bundle
   the floors stay lit;
+- puts the dark rock pieces on the unused layer 23, which the sun doesn't light (no sun streaks through cracks / shadow bias inside);
+  every other light and the cameras get that layer added;
 - adds a black reflection probe over the inside (no sky reflections on wet rock in the dark);
 - holds the eye adaptation (post-processing AutoExposure, if a profile has it on) while you are in the dark part, so it doesn't brighten the cave back up;
 - NPCs, items, cars and the player (body, arms, held gear) take the light of their spot while they are in a cave and fade back outside.

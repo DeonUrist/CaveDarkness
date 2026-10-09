@@ -72,6 +72,7 @@ namespace CaveDarkness
         {
             foreach (var c in All) Undo(c);
             TerrainDark.Restore();
+            SunCut.Restore();
             All.Clear(); _known.Clear(); _origMesh.Clear(); _baking = false; _nextScan = 0f;
             Dyn.RestoreAll();
         }
@@ -218,7 +219,8 @@ namespace CaveDarkness
             Begin();
             foreach (var r in rs)
             {
-                if (r == null || c.Root == null) break;
+                if (c.Root == null) break;
+                if (r == null) continue;   // (the previous bake's band pieces are destroyed at the end of the frame - 0.3.1 stopped here and left the rock unsplit)
                 var go = r.gameObject;
                 if (go.layer == 2 || go.layer == 5 || go.layer == 22 || go.name.StartsWith("CaveDarkness")) continue;
                 var mf = r.GetComponent<MeshFilter>();
@@ -404,6 +406,7 @@ namespace CaveDarkness
                 var m = wm.Build(band[k], orig.name + " (CaveDarkness band " + k + ")");
                 c.Made.Add(m);
                 g.AddComponent<MeshFilter>().sharedMesh = m;
+                if (Sky.Light(bandOpen[k] / band[k].Count, bandDist[k] / band[k].Count) < 0.5f) g.layer = SunCut.Layer;   // no sun streaks inside
                 var br = g.AddComponent<MeshRenderer>();
                 br.sharedMaterials = r.sharedMaterials;
                 br.shadowCastingMode = r.shadowCastingMode;

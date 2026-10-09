@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Plugin.cs;MeshBank.cs;Sky.cs;Caves.cs;Dyn.cs;Exposure.cs;Diag.cs;TerrainDark.cs" />
+    <Compile Include="Plugin.cs;MeshBank.cs;Sky.cs;Caves.cs;Dyn.cs;Exposure.cs;Diag.cs;TerrainDark.cs;SunCut.cs" />
   </ItemGroup>
 
   <ItemGroup>
