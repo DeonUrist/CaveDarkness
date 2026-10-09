@@ -44,6 +44,10 @@ inline void LightingCaveStandard_GI(SurfaceOutputStandard s, UnityGIInput data, 
     half a = CaveAmbient(data.worldPos);
     gi.indirect.diffuse *= a;
     gi.indirect.specular *= a;
+    // The sun too (the GI function only runs in the base pass, so the flashlight, fires and lamps in the forward-add passes are untouched):
+    // the rock shells don't reach into the ground, and the low sun leaks through the gap / shadow bias at the foot of the walls onto a
+    // strip of floor. Full sun where the map says open (the mouth), none from half darkness inward.
+    gi.light.color *= saturate(a * 2);
 }
 
 #endif
