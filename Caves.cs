@@ -16,6 +16,8 @@ namespace CaveDarkness
         public bool HadBlock;
     }
 
+    internal class GrassBackup { public TerrainData Data; public int X, Y, Layer; public int[,] Orig; }
+
     internal class Cave
     {
         public GameObject Root;
@@ -28,6 +30,8 @@ namespace CaveDarkness
         public readonly List<Material> MadeMats = new List<Material>();
         public string FloorInfo;
         public Texture2D Map;          // terrain light map (TerrainDark)
+        public readonly List<GrassBackup> Grass = new List<GrassBackup>();
+        public int GrassCleared;
         public Vector4 MapRect;
         public readonly List<GameObject> MadeGos = new List<GameObject>();
         public readonly List<KeyValuePair<MeshFilter, Mesh>> Swapped = new List<KeyValuePair<MeshFilter, Mesh>>();
@@ -471,6 +475,7 @@ namespace CaveDarkness
             foreach (var m in c.MadeMats) if (m != null) Object.Destroy(m);
             c.MadeMats.Clear();
             if (c.Map != null) { Object.Destroy(c.Map); c.Map = null; }
+            TerrainDark.RestoreGrass(c);
             c.Parts.Clear(); c.Made.Clear(); c.MadeGos.Clear(); c.Swapped.Clear(); c.Anchored.Clear(); c.Lods.Clear();
             c.Ready = false;
         }

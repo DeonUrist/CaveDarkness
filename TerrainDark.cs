@@ -11,7 +11,7 @@ namespace CaveDarkness
     // handed to the shader as globals.
     internal static class TerrainDark
     {
-        private const float Step = 0.5f;
+        private const float Step = 0.25f;
         private const int MaxCells = 256;
 
         private static Shader _shader;
@@ -132,25 +132,45 @@ namespace CaveDarkness
             float x0 = b.min.x - 2f, x1 = b.max.x + 2f, z0 = b.min.z - 2f, z1 = b.max.z + 2f;
             float step = Mathf.Max(Step, Mathf.Max(x1 - x0, z1 - z0) / MaxCells);
             int w = Mathf.Max(2, Mathf.CeilToInt((x1 - x0) / step) + 1), h = Mathf.Max(2, Mathf.CeilToInt((z1 - z0) / step) + 1);
-            var px = new Color32[w * h];
+            // FOOTPRINT, not sky visibility: a floor point is inside the cave when a ray straight up from it hits this cave's own rock
+            // (backfaces on, so points under the wall's foot / inside the rock count too). Inside -> the depth term only; outside -> 1.
+            // Robust against cracks and the gap under the walls that fooled the openness rays (the "dim lines" at the wall foot).
+            var root = c.Root.transform;
+            var cov = new bool[w * h];
+            var lv = new float[w * h];
             int dark = 0;
             for (int j = 0; j < h; j++)
                 for (int i = 0; i < w; i++)
                 {
+                    int k = j * w + i;
                     float x = x0 + i * step, z = z0 + j * step;
-                    float l = 1f;
+                    lv[k] = 1f;
                     float u = (x - tp.x) / size.x, v = (z - tp.z) / size.z;
                     if (u >= 0f && u <= 1f && v >= 0f && v <= 1f)   // (a cave on a tile border: the part on the next tile stays lit)
                     {
-                        var n = td.GetInterpolatedNormal(u, v);
                         var p = new Vector3(x, td.GetInterpolatedHeight(u, v) + tp.y + 0.05f, z);
-                        l = Sky.Light(Sky.Surface(p, n), c.Dist(p));
-                        if (l < Sky.Outside) dark++;
+                        if (Covered(root, p)) { cov[k] = true; lv[k] = Sky.Light(0f, c.Dist(p)); dark++; }
                         if (Caves.Over()) yield return null;
                     }
+                }
+            // soften the edge of the footprint (it lies under the rock's outer lip, so this only removes stair steps)
+            var px = new Color32[w * h];
+            for (int j = 0; j < h; j++)
+                for (int i = 0; i < w; i++)
+                {
+                    float s = 0f; int nn = 0;
+                    for (int dj = -1; dj <= 1; dj++)
+                        for (int di = -1; di <= 1; di++)
+                        {
+                            int ii = i + di, jj = j + dj;
+                            if (ii < 0 || jj < 0 || ii >= w || jj >= h) continue;
+                            s += lv[jj * w + ii]; nn++;
+                        }
+                    float l = cov[j * w + i] ? Mathf.Min(lv[j * w + i], s / nn) : s / nn;
                     byte by = (byte)Mathf.Clamp(Mathf.RoundToInt(l * 255f), 0, 255);
                     px[j * w + i] = new Color32(by, by, by, 255);
                 }
+            if (dark > 0) ClearGrass(c, ter, cov, x0, z0, step, w, h);
             if (dark == 0) { c.FloorInfo = "terrain inside is open to the sky"; yield break; }
             var tex = new Texture2D(w, h, TextureFormat.RGBA32, false, true);
             tex.name = "CaveDarkness map " + c.Name;
@@ -161,7 +181,60 @@ namespace CaveDarkness
             c.Map = tex;
             // texel centres sit on the grid points
             c.MapRect = new Vector4(x0 - step * 0.5f, z0 - step * 0.5f, 1f / (step * w), 1f / (step * h));
-            c.FloorInfo = w + "x" + h + " map (" + step.ToString("0.00") + " m), " + dark + " dark points";
+            c.FloorInfo = w + "x" + h + " map (" + step.ToString("0.00") + " m), " + dark + " points under the rock" +
+                          (c.GrassCleared > 0 ? ", " + c.GrassCleared + " grass cells removed" : "");
+        }
+
+        private static readonly RaycastHit[] _hits = new RaycastHit[16];
+
+        private static bool Covered(Transform root, Vector3 p)
+        {
+            int n = Physics.RaycastNonAlloc(p, Vector3.up, _hits, 80f, Sky.Mask, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++)
+                if (_hits[i].collider != null && _hits[i].collider.transform.IsChildOf(root)) return true;
+            return false;
+        }
+
+        // Grass (terrain detail objects) is drawn by Unity's own detail shaders, which this mod can't darken - and nothing grows in a cave.
+        // Detail cells whose centre is under the rock are emptied; the old counts are kept on the cave and put back on undo.
+        private static void ClearGrass(Cave c, Terrain ter, bool[] cov, float x0, float z0, float step, int w, int h)
+        {
+            var td = ter.terrainData;
+            int res = td.detailResolution, layers = td.detailPrototypes != null ? td.detailPrototypes.Length : 0;
+            if (res <= 0 || layers == 0) return;
+            var tp = ter.transform.position; var size = td.size;
+            int dx0 = Mathf.Clamp(Mathf.FloorToInt((x0 - tp.x) / size.x * res), 0, res - 1);
+            int dz0 = Mathf.Clamp(Mathf.FloorToInt((z0 - tp.z) / size.z * res), 0, res - 1);
+            int dx1 = Mathf.Clamp(Mathf.CeilToInt((x0 + (w - 1) * step - tp.x) / size.x * res), 0, res - 1);
+            int dz1 = Mathf.Clamp(Mathf.CeilToInt((z0 + (h - 1) * step - tp.z) / size.z * res), 0, res - 1);
+            int dw = dx1 - dx0 + 1, dh = dz1 - dz0 + 1;
+            if (dw <= 0 || dh <= 0) return;
+            for (int layer = 0; layer < layers; layer++)
+            {
+                var d = td.GetDetailLayer(dx0, dz0, dw, dh, layer);   // [z, x]
+                var orig = (int[,])d.Clone();
+                int cleared = 0;
+                for (int zz = 0; zz < dh; zz++)
+                    for (int xx = 0; xx < dw; xx++)
+                    {
+                        if (d[zz, xx] == 0) continue;
+                        float wx = tp.x + (dx0 + xx + 0.5f) / res * size.x, wz = tp.z + (dz0 + zz + 0.5f) / res * size.z;
+                        int gi = Mathf.RoundToInt((wx - x0) / step), gj = Mathf.RoundToInt((wz - z0) / step);
+                        if (gi < 0 || gj < 0 || gi >= w || gj >= h || !cov[gj * w + gi]) continue;
+                        d[zz, xx] = 0; cleared++;
+                    }
+                if (cleared == 0) continue;
+                td.SetDetailLayer(dx0, dz0, layer, d);
+                c.Grass.Add(new GrassBackup { Data = td, X = dx0, Y = dz0, Layer = layer, Orig = orig });
+                c.GrassCleared += cleared;
+            }
+        }
+
+        public static void RestoreGrass(Cave c)
+        {
+            foreach (var g in c.Grass)
+                if (g.Data != null) { try { g.Data.SetDetailLayer(g.X, g.Y, g.Layer, g.Orig); } catch { } }
+            c.Grass.Clear(); c.GrassCleared = 0;
         }
     }
 }
