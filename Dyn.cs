@@ -30,7 +30,9 @@ namespace CaveDarkness
         private static readonly List<Transform> _drop = new List<Transform>();
         private static readonly List<Renderer> _tmp = new List<Renderer>();
         private static readonly MaterialPropertyBlock _mpb = new MaterialPropertyBlock();
-        private static float _next;
+        private static float _next, _nextExtra;
+        private static readonly string[] ExtraNames = { "ApocaplayerBody", "ApocaplayerRagdoll" };
+        private static readonly List<Transform> _extra = new List<Transform>();
 
         public static float CameraLight = 1f;   // ambient light at the camera (1 = outside)
 
@@ -65,6 +67,21 @@ namespace CaveDarkness
                     if (root == c.Root.transform) continue;
                     Mark(root, c, root.position + Vector3.up * 0.9f, false, now);
                 }
+            }
+            // bodies that have no collider of their own: Apocaplayer's character (a scene root, follows the player) and its ragdoll
+            if (now >= _nextExtra)
+            {
+                _nextExtra = now + 2f;
+                _extra.Clear();
+                foreach (var n in ExtraNames) { var g = GameObject.Find(n); if (g != null) _extra.Add(g.transform); }
+            }
+            foreach (var x in _extra)
+            {
+                if (x == null || !x.gameObject.activeInHierarchy) continue;
+                var smr = x.GetComponentInChildren<SkinnedMeshRenderer>();
+                var sp = smr != null ? smr.bounds.center : x.position + Vector3.up * 0.9f;   // (the body's root may not follow her)
+                var xc = Caves.At(sp);
+                if (xc != null) Mark(x, xc, sp, false, now);
             }
             // the player's view: arms, held items and the flashlight model hang under the camera's root
             CameraLight = 1f;

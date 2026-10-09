@@ -20,7 +20,7 @@ namespace CaveDarkness
     {
         public const string GUID = "com.denis.apocalypter.cavedarkness";
         public const string NAME = "CaveDarkness";
-        public const string VERSION = "0.3.2";
+        public const string VERSION = "0.3.3";
 
         internal static ManualLogSource Log;
         internal static ConfigEntry<bool> Enabled, VerboseLog, TintTest;

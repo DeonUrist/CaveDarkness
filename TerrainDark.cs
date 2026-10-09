@@ -126,7 +126,9 @@ namespace CaveDarkness
             if (ter == null) { c.FloorInfo = "no terrain under the cave"; yield break; }
             var td = ter.terrainData; var tp = ter.transform.position; var size = td.size;
 
-            var b = c.Inner;
+            // the whole structure + 2 m (0.3.2 covered only the dark inside, so the half-lit floor at the mouth and along the rect's border
+            // jumped to full light where the map ended - a bright edge on the ground)
+            var b = c.Box;
             float x0 = b.min.x - 2f, x1 = b.max.x + 2f, z0 = b.min.z - 2f, z1 = b.max.z + 2f;
             float step = Mathf.Max(Step, Mathf.Max(x1 - x0, z1 - z0) / MaxCells);
             int w = Mathf.Max(2, Mathf.CeilToInt((x1 - x0) / step) + 1), h = Mathf.Max(2, Mathf.CeilToInt((z1 - z0) / step) + 1);
