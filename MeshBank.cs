@@ -44,7 +44,7 @@ namespace CaveDarkness
                         _meshes[d.Name] = d;
                     }
                 }
-                Plugin.Log.LogInfo("cave meshes: " + string.Join(", ", new List<string>(_meshes.Keys).ToArray()));
+                Plugin.Verbose("cave meshes: " + string.Join(", ", new List<string>(_meshes.Keys).ToArray()));
             }
             catch (Exception e) { _meshes.Clear(); Plugin.Log.LogWarning("cavemeshes.bin unreadable: " + e.Message); }
         }

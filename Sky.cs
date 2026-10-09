@@ -156,7 +156,7 @@ namespace CaveDarkness
 
         public static void Apply(Renderer r, MaterialPropertyBlock mpb, float light)
         {
-            if (Plugin.TintTest.Value)
+            if (Plugin.Tint)
             {
                 // debug: flat ambient, red = darkened by this mod (bright red = light 1, black = light 0)
                 var sh = new SphericalHarmonicsL2();

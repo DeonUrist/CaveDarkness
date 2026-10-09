@@ -48,7 +48,7 @@ namespace CaveDarkness
                 AutoExposure ae;
                 if (prof == null || !prof.TryGetSettings(out ae) || ae == null) continue;
                 if (!_logged)
-                    Plugin.Log.LogInfo("post-processing " + v.name + ": AutoExposure " + (ae.enabled.value ? "on" : "off") + ", min " + ae.minLuminance.value +
+                    Plugin.Verbose("post-processing " + v.name + ": AutoExposure " + (ae.enabled.value ? "on" : "off") + ", min " + ae.minLuminance.value +
                                        " EV, max " + ae.maxLuminance.value + " EV, key " + ae.keyValue.value + ", mode " + ae.eyeAdaptation.value);
                 if (!ae.enabled.value || !ae.active) continue;
                 bool dup = false;

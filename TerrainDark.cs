@@ -38,7 +38,7 @@ namespace CaveDarkness
             foreach (var s in b.LoadAllAssets<Shader>())
                 if (s != null && s.name == "CaveDarkness/Terrain") _shader = s;
             if (_shader == null || !_shader.isSupported) { Plugin.Log.LogWarning("CaveDarkness/Terrain shader " + (_shader == null ? "not in the bundle" : "not supported")); _shader = null; return; }
-            Plugin.Log.LogInfo("terrain shader loaded: " + _shader.name);
+            Plugin.Verbose("terrain shader loaded: " + _shader.name);
         }
 
         public static void Tick()

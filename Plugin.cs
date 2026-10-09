@@ -1,4 +1,7 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
@@ -11,16 +14,18 @@ namespace CaveDarkness
     // Caves become dark places instead of dimming the whole world.
     // Vanilla: the Player's PlayMaker FSM "CaveDarkness" eases Azure's environmentIntensity (= RenderSettings.ambientIntensity, global)
     // to 0.15 when the player passes a cave mouth's Cave_IN trigger and back at Cave_OUT. This mod skips that global change (the FSM keeps
-    // running, so CaveDarkness_bool still works for other mods) and darkens the cave itself: every renderer of a cave structure gets its own
-    // ambient light (LightProbeUsage.CustomProvided + scaled ambient SH) from how much sky it can see (raycasts, done once per cave);
-    // the big rock shells are split into ambient bands (readable copies of their meshes ship in cavemeshes.bin); a black reflection
-    // probe covers the inside; NPCs, items, cars and the player's own view get the same treatment while they are in a cave.
+    // running, so CaveDarkness_bool still works for other mods) and darkens the cave itself. Per cave, once (Field.cs): a voxel grid of rock
+    // and air and each air voxel's distance through the air to open sky; light falls with that distance. Every renderer of the cave gets its
+    // own ambient light from it (LightProbeUsage.CustomProvided + scaled ambient SH); the big rock shells are split into light bands
+    // (readable copies of their meshes ship in cavemeshes.bin); the terrain floor uses a shader from cavedarkness.bundle with a light map;
+    // a black reflection probe covers the inside; NPCs, items, cars and the player follow the light of their spot. Positions are kept in
+    // MapMagic's frame (the game's floating origin shifts world coordinates every 1,000 m).
     [BepInPlugin(GUID, NAME, VERSION)]
     public class Plugin : BaseUnityPlugin
     {
         public const string GUID = "com.denis.apocalypter.cavedarkness";
         public const string NAME = "CaveDarkness";
-        public const string VERSION = "0.5.2";
+        public const string VERSION = "1.0.0";
 
         internal static ManualLogSource Log;
         internal static ConfigEntry<bool> Enabled, VerboseLog, TintTest;
@@ -40,13 +45,14 @@ namespace CaveDarkness
                 "How dark the deepest part of a cave gets (1 = pitch black, 0 = as bright as outside). Lamps and your flashlight still light it",
                 new AcceptableValueRange<float>(0f, 1f)));
             DarknessGradient = Config.Bind("General", "DarknessGradient", 12f, new ConfigDescription(
-                "Metres from the cave entrance to the full darkness (smaller = it gets dark sooner)",
+                "Metres walked in from the cave mouth to the full darkness (smaller = it gets dark sooner)",
                 new AcceptableValueRange<float>(1f, 60f)));
-            VerboseLog = Config.Bind("Debug", "VerboseLog", false, "Log every cave that gets baked and what was darkened");
+            VerboseLog = Config.Bind("Debug", "VerboseLog", false,
+                "Debug: log every cave found and baked, and in a cave the render state and what is under the crosshair. Also needed for TintTest");
             TintTest = Config.Bind("Debug", "TintTest", false,
-                "Debug: everything this mod darkens is lit flat red instead (bright red = full light, black = full darkness), to see what the mod reaches. " +
-                "While on, entering a cave also logs what is under the crosshair and the render settings");
+                "Debug (only with VerboseLog on): everything this mod darkens is lit flat red instead (bright red = full light, black = full darkness)");
             TintTest.SettingChanged += (s, e) => Caves.OnSettingsChanged();
+            VerboseLog.SettingChanged += (s, e) => { if (TintTest.Value) Caves.OnSettingsChanged(); };
             Enabled.SettingChanged += (s, e) => Caves.OnSettingsChanged();
             MaxDarkness.SettingChanged += (s, e) => Caves.OnSettingsChanged();
             DarknessGradient.SettingChanged += (s, e) => Caves.OnSettingsChanged();
@@ -62,10 +68,55 @@ namespace CaveDarkness
             }
             else Log.LogWarning("SetProperty action not found - the vanilla global dimming stays on");
 
+            // [Debug] at the bottom of the file (BepInEx writes sections alphabetically)
+            h.Patch(AccessTools.Method(typeof(ConfigFile), "Save"), postfix: new HarmonyMethod(typeof(Plugin), nameof(AfterSave)));
+            _cfg = Config;
+            Config.Save();
+
             MeshBank.Load(Path.Combine(Folder, "cavemeshes.bin"));
             SceneManager.sceneLoaded += (s, m) => { EnsureRunner(); Caves.Reset(); };
             EnsureRunner();
-            Log.LogInfo(NAME + " " + VERSION + " loaded");
+            Verbose(NAME + " " + VERSION + " loaded");
+        }
+
+        internal static bool Tint { get { return TintTest.Value && VerboseLog.Value; } }
+
+        private static ConfigFile _cfg;
+        private static bool _saving;
+
+        private static void AfterSave(ConfigFile __instance)
+        {
+            if (_saving || __instance != _cfg) return;
+            _saving = true;
+            try { SortSections(__instance); }
+            catch (System.Exception e) { Log.LogWarning("Config section order: " + e.Message); }
+            finally { _saving = false; }
+        }
+
+        // rewrite the file with the sections in bind order (General, then Debug)
+        private static void SortSections(ConfigFile cfg)
+        {
+            string path = cfg.ConfigFilePath;
+            if (!File.Exists(path)) return;
+            string text = File.ReadAllText(path);
+            var lines = text.Replace("\r\n", "\n").Split('\n');
+            var header = new List<string>();
+            var blocks = new List<KeyValuePair<string, List<string>>>();
+            foreach (var line in lines)
+            {
+                string t = line.Trim();
+                if (t.StartsWith("[") && t.EndsWith("]")) { blocks.Add(new KeyValuePair<string, List<string>>(t.Substring(1, t.Length - 2), new List<string> { line })); continue; }
+                if (blocks.Count == 0) header.Add(line); else blocks[blocks.Count - 1].Value.Add(line);
+            }
+            var order = new List<string>();
+            foreach (var k in cfg.Keys) if (!order.Contains(k.Section)) order.Add(k.Section);
+            var sorted = blocks.OrderBy(b => { int i = order.IndexOf(b.Key); return i < 0 ? int.MaxValue : i; }).ToList();
+            var sb = new StringBuilder();
+            foreach (var l in header) sb.Append(l).Append('\n');
+            foreach (var b in sorted) foreach (var l in b.Value) sb.Append(l).Append('\n');
+            string result = sb.ToString().TrimEnd('\n') + "\n";
+            if (text.Contains("\r\n")) result = result.Replace("\n", "\r\n");
+            if (result != text) File.WriteAllText(path, result, new UTF8Encoding(false));
         }
 
         private void DropOrphan(string section, string key)

@@ -5,7 +5,7 @@ using UnityEngine.Rendering.PostProcessing;
 
 namespace CaveDarkness
 {
-    // Debug (TintTest or VerboseLog): when the camera enters a baked cave, and every 5 s while inside, log the render state and
+    // Debug (VerboseLog): when the camera enters a baked cave, and every 5 s while inside, log the render state and
     // what is under the crosshair, to find out what still lights a cave.
     internal static class Diag
     {
@@ -14,7 +14,7 @@ namespace CaveDarkness
 
         public static void Tick()
         {
-            if (!Plugin.TintTest.Value && !Plugin.VerboseLog.Value) { _wasIn = false; return; }
+            if (!Plugin.VerboseLog.Value) { _wasIn = false; return; }
             float now = Time.unscaledTime;
             if (now < _next) return;
             var cam = Camera.main;

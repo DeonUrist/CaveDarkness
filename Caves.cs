@@ -238,7 +238,7 @@ namespace CaveDarkness
                 cpu += _sw.Elapsed.TotalMilliseconds; End();
                 if (f == null || f.Q == null) { c.Failed = true; c.Baking = false; _baking = false; yield break; }
                 c.Field = f;
-                Plugin.Log.LogInfo("cave " + c.Name + ": field " + f.NX + "x" + f.NY + "x" + f.NZ + " (" + f.V.ToString("0.00") + " m voxels), " + f.Rock +
+                Plugin.Verbose("cave " + c.Name + ": field " + f.NX + "x" + f.NY + "x" + f.NZ + " (" + f.V.ToString("0.00") + " m voxels), " + f.Rock +
                                    " rock, " + f.Air + " air, " + f.Unreached + " sealed air");
             }
 
@@ -343,12 +343,12 @@ namespace CaveDarkness
                 Apply(c);
                 float lmin = 1f, lmax = 0f;
                 foreach (var p in c.Parts) { float l = Sky.Light(p.Open, p.Dist); if (l < lmin) lmin = l; if (l > lmax) lmax = l; }
-                Plugin.Log.LogInfo("cave " + c.Name + ": " + split + " rock mesh(es) -> " + tris + " triangles in " + bands + " light bands, " + single +
+                Plugin.Verbose("cave " + c.Name + ": " + split + " rock mesh(es) -> " + tris + " triangles in " + bands + " light bands, " + single +
                                    " other object(s) darkened, " + (Sky.Rays - rays0) + " rays, " + cpu.ToString("0") + " ms over " + frames + " frames (" +
                                    total.Elapsed.TotalSeconds.ToString("0.0") + " s)" + (c.HasInner ? "" : ", no dark inside found") +
                                    ", light " + lmin.ToString("0.00") + ".." + lmax.ToString("0.00") + ", deepest part " +
                                    DeepestDist(c).ToString("0") + " m from the entrance; floor: " + c.FloorInfo);
-                if (_firstLog) { _firstLog = false; Plugin.Log.LogInfo(Sky.AmbientInfo()); }
+                if (_firstLog && Plugin.VerboseLog.Value) { _firstLog = false; Plugin.Log.LogInfo(Sky.AmbientInfo()); }
             }
             c.Baking = false;
             _baking = false;
