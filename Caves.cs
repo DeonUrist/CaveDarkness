@@ -72,7 +72,7 @@ namespace CaveDarkness
         {
             foreach (var c in All) Undo(c);
             TerrainDark.Restore();
-            All.Clear(); _known.Clear(); _baking = false; _nextScan = 0f;
+            All.Clear(); _known.Clear(); _origMesh.Clear(); _baking = false; _nextScan = 0f;
             Dyn.RestoreAll();
         }
 
@@ -222,8 +222,14 @@ namespace CaveDarkness
                 var go = r.gameObject;
                 if (go.layer == 2 || go.layer == 5 || go.layer == 22 || go.name.StartsWith("CaveDarkness")) continue;
                 var mf = r.GetComponent<MeshFilter>();
-                if (mf == null || mf.sharedMesh == null) continue;
+                if (mf == null) continue;
+                // a rock split before (re-bake after a setting change): always start from the game's own mesh
+                Mesh known;
+                if (_origMesh.TryGetValue(mf.GetInstanceID(), out known) && known != null && mf.sharedMesh != known) mf.sharedMesh = known;
+                if (mf.sharedMesh == null) continue;
                 var data = MeshBank.Get(mf.sharedMesh);
+                if (data == null && mf.sharedMesh.name.Contains("Cave") && mf.sharedMesh.name.Contains("Rock"))
+                    Plugin.Log.LogWarning(c.Name + ": " + r.name + " has mesh " + mf.sharedMesh.name + " (" + mf.sharedMesh.vertexCount + " v) - not in cavemeshes.bin");
                 if (data != null)
                 {
                     var e = Split(c, r, mf, data);
@@ -326,6 +332,7 @@ namespace CaveDarkness
             return m;
         }
 
+        private static readonly Dictionary<int, Mesh> _origMesh = new Dictionary<int, Mesh>();   // MeshFilter -> the game's mesh
         private static bool _firstLog = true;
         private static int _lastTris, _lastBands;
 
@@ -379,6 +386,7 @@ namespace CaveDarkness
             if (outside.Count == nt) yield break;   // all open: leave it as it is
 
             var orig = mf.sharedMesh;
+            _origMesh[mf.GetInstanceID()] = orig;
             var outMesh = wm.Build(outside, orig.name + " (CaveDarkness outside)");
             c.Made.Add(outMesh);
             c.Swapped.Add(new KeyValuePair<MeshFilter, Mesh>(mf, orig));
