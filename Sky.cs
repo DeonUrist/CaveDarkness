@@ -67,7 +67,7 @@ namespace CaveDarkness
             for (int i = 0; i < 8; i++) { float a = i * Mathf.PI / 4f; r[i] = new Vector3(Mathf.Cos(a), 0.17f, Mathf.Sin(a)).normalized; }
             return r;
         }
-        private static bool Walled(Vector3 o)
+        internal static bool Walled(Vector3 o)
         {
             int miss = 0;
             for (int i = 0; i < 8; i++) if (!Hit(o, _ring[i]) && ++miss > 2) return false;

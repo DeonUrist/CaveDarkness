@@ -133,6 +133,7 @@ namespace CaveDarkness
             float step = Mathf.Max(Step, Mathf.Max(x1 - x0, z1 - z0) / MaxCells);
             int w = Mathf.Max(2, Mathf.CeilToInt((x1 - x0) / step) + 1), h = Mathf.Max(2, Mathf.CeilToInt((z1 - z0) / step) + 1);
             // FOOTPRINT, not sky visibility: a floor point is inside the cave when a ray straight up from it hits this cave's own rock
+            // and it is walled in (see below)
             // (backfaces on, so points under the wall's foot / inside the rock count too). Inside -> the depth term only; outside -> 1.
             // Robust against cracks and the gap under the walls that fooled the openness rays (the "dim lines" at the wall foot).
             var root = c.Root.transform;
@@ -149,7 +150,9 @@ namespace CaveDarkness
                     if (u >= 0f && u <= 1f && v >= 0f && v <= 1f)   // (a cave on a tile border: the part on the next tile stays lit)
                     {
                         var p = new Vector3(x, td.GetInterpolatedHeight(u, v) + tp.y + 0.05f, z);
-                        if (Covered(root, p)) { cov[k] = true; lv[k] = Sky.Light(0f, c.Dist(p)); dark++; }
+                        // under the rock AND walled in at head height (1.2 m: above the gap under the walls): inside the cave.
+                        // Under an outer overhang ("mushroom" rock) the rays get out sideways -> outside, normal light.
+                        if (Covered(root, p) && Sky.Walled(p + Vector3.up * 1.2f)) { cov[k] = true; lv[k] = Sky.Light(0f, c.Dist(p)); dark++; }
                         if (Caves.Over()) yield return null;
                     }
                 }
