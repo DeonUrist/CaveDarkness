@@ -29,6 +29,13 @@ CaveDarkness:
 
 Point lights (lamps, fires, your flashlight) are untouched, so they now matter in caves.
 
+## How darkness is decided (0.5.0)
+
+One field per cave: a voxel grid (0.5 m, coarser for very large caves) over the structure + 4 m is split into rock (every static surface found by
+rays along X, Y and Z, plus a 1.5 m layer under the ground, then grown by one voxel to seal cracks and the gap under the walls) and air. Each air
+voxel gets its distance through the air to open sky (Dijkstra from the air above the first rock in every column). Light = full for the first 2 m,
+then falls to MaxDarkness over DarknessGradient metres. Rocks, the floor map, objects and the player all read this field.
+
 ## Install
 
 Copy the `CaveDarkness` folder (CaveDarkness.dll + cavemeshes.bin + cavedarkness.bundle) into `BepInEx\plugins\`.

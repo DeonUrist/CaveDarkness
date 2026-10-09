@@ -27,7 +27,7 @@ namespace CaveDarkness
             if (!_wasIn || !_globalDone) { Global(sb, cam); _globalDone = true; }
             _wasIn = true;
             var cp = cam.transform.position;
-            sb.Append("[diag] camera in ").Append(cave.Name).Append(", ").Append(cave.Dist(cp).ToString("0.0")).Append(" m from the entrance, open ")
+            sb.Append("[diag] camera in ").Append(cave.Name).Append(", ").Append(cave.Dist(cp).ToString("0.0")).Append(" m (through the air) from the sky, open ")
               .Append(cave.OpenAt(cp).ToString("0.00")).Append(", camera light ").Append(Dyn.CameraLight.ToString("0.00")).Append('\n');
             RaycastHit hit;
             if (Physics.Raycast(cp, cam.transform.forward, out hit, 60f, ~((1 << 2) | (1 << 6)), QueryTriggerInteraction.Ignore))

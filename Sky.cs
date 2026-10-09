@@ -116,14 +116,15 @@ namespace CaveDarkness
             return tot > 0f ? esc / tot : 1f;
         }
 
+        // dist = metres THROUGH THE AIR to open sky (the cave's Field). The first Margin metres stay fully lit (mouth, overhangs), then the
+        // light falls to MaxDarkness over DarknessGradient metres, quickly at first. (open: unused since 0.5.0)
+        public const float Margin = 2f;
         public static float Light(float open, float dist)
         {
             float floor = 1f - Plugin.MaxDarkness.Value;
-            float t = Mathf.Clamp01(dist / Mathf.Max(0.5f, Plugin.DarknessGradient.Value));
+            float t = Mathf.Clamp01((dist - Margin) / Mathf.Max(0.5f, Plugin.DarknessGradient.Value));
             float u = 1f - t;
-            float depth = floor + (1f - floor) * u * u;
-            float sky = Mathf.Pow(Mathf.Clamp01(open / OpenFull), Gamma);
-            return Mathf.Lerp(depth, 1f, sky);
+            return floor + (1f - floor) * u * u;
         }
 
         // ---- ambient SH ----

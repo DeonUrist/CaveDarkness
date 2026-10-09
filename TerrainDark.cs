@@ -114,7 +114,7 @@ namespace CaveDarkness
         {
             c.FloorInfo = "none";
             if (!Available) { c.FloorInfo = "no terrain shader (cavedarkness.bundle)"; yield break; }
-            if (!c.HasInner) { c.FloorInfo = "no dark inside"; yield break; }
+            if (!c.HasInner || c.Field == null) { c.FloorInfo = "no dark inside"; yield break; }
             var mouth = c.Mouth;
             Terrain ter = null;
             foreach (var t in Terrain.activeTerrains)
@@ -152,7 +152,9 @@ namespace CaveDarkness
                         var p = new Vector3(x, td.GetInterpolatedHeight(u, v) + tp.y + 0.05f, z);
                         // under the rock AND walled in at head height (1.2 m: above the gap under the walls): inside the cave.
                         // Under an outer overhang ("mushroom" rock) the rays get out sideways -> outside, normal light.
-                        if (Covered(root, p) && Sky.Walled(p + Vector3.up * 1.2f)) { cov[k] = true; lv[k] = Sky.Light(0f, c.Dist(p)); dark++; }
+                        float l = Sky.Light(0f, c.Field.SampleSurface(p, td.GetInterpolatedNormal(u, v)));
+                        if (l < Sky.Outside) { lv[k] = l; dark++; }
+                        cov[k] = l < 0.6f;   // grass goes where it is really dark (not under the half-lit lip of an overhang)
                         if (Caves.Over()) yield return null;
                     }
                 }

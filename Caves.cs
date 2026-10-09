@@ -40,24 +40,11 @@ namespace CaveDarkness
         public Transform InAnchor, OutAnchor;
         public Transform MouthT;                    // the Cave_IN trigger (read live: MapMagic moves the structure after spawning it)
         public Vector3 Mouth { get { return MouthT != null ? MouthT.position : (Root != null ? Root.transform.position : Vector3.zero); } }
-        public float Dist(Vector3 p) { return Vector3.Distance(p, Mouth); }
+        public Field Field;                         // 0.5.0: distance through the air to open sky, per voxel
+        // metres through the air from this point to open sky (0 = under the sky, 1000 = no air path)
+        public float Dist(Vector3 p) { return Field != null ? Field.Sample(p) : 0f; }
         public int AppliedVersion = -1;
-        public readonly Dictionary<long, float> Grid = new Dictionary<long, float>();
-
-        public float OpenAt(Vector3 p)
-        {
-            int x = Mathf.FloorToInt(p.x), y = Mathf.FloorToInt(p.y), z = Mathf.FloorToInt(p.z);
-            long key = ((long)(x & 0x1FFFFF) << 42) | ((long)(y & 0x1FFFFF) << 21) | (long)(uint)(z & 0x1FFFFF);
-            float o;
-            if (Grid.TryGetValue(key, out o)) return o;
-            bool bf = Physics.queriesHitBackfaces;
-            Physics.queriesHitBackfaces = true;
-            o = Sky.Point(new Vector3(x + 0.5f, y + 0.5f, z + 0.5f));
-            Physics.queriesHitBackfaces = bf;
-            if (Grid.Count > 50000) Grid.Clear();
-            Grid[key] = o;
-            return o;
-        }
+        public float OpenAt(Vector3 p) { return 0f; }   // (0.4: sky openness - superseded by the field)
     }
 
     internal static class Caves
@@ -219,6 +206,29 @@ namespace CaveDarkness
             c.OutAnchor.position = new Vector3(box.center.x, box.max.y + 40f, box.center.z);
             c.MadeGos.Add(c.OutAnchor.gameObject);
 
+            // the darkness field first: everything below reads it
+            if (c.Field == null)
+            {
+                var f = new Field();
+                Begin();
+                var fe = Field.Build(c, f);
+                while (true)
+                {
+                    bool more;
+                    try { more = fe.MoveNext(); } catch (System.Exception ex) { Plugin.Log.LogWarning("field of " + c.Name + ": " + ex); more = false; f = null; }
+                    if (!more) break;
+                    cpu += _sw.Elapsed.TotalMilliseconds; frames++; End();
+                    yield return null;
+                    if (c.Root == null || !Plugin.Enabled.Value) { _baking = false; c.Baking = false; yield break; }
+                    Begin();
+                }
+                cpu += _sw.Elapsed.TotalMilliseconds; End();
+                if (f == null || f.Q == null) { c.Failed = true; c.Baking = false; _baking = false; yield break; }
+                c.Field = f;
+                Plugin.Log.LogInfo("cave " + c.Name + ": field " + f.NX + "x" + f.NY + "x" + f.NZ + " (" + f.V.ToString("0.00") + " m voxels), " + f.Rock +
+                                   " rock, " + f.Air + " air, " + f.Unreached + " sealed air");
+            }
+
             int split = 0, single = 0, tris = 0, bands = 0;
             Begin();
             foreach (var r in rs)
@@ -254,7 +264,7 @@ namespace CaveDarkness
                 else
                 {
                     var p = r.bounds.center;
-                    float o = Sky.Point(p);
+                    float o = 0f;
                     float dd = c.Dist(p);
                     float l = Sky.Light(o, dd);
                     if (l < Sky.Outside)
@@ -366,7 +376,7 @@ namespace CaveDarkness
                 var wn = tr.TransformDirection(wm.N[i]).normalized;
                 long key = Key(wm.P[i], wm.N[i]);
                 float o;
-                if (!same.TryGetValue(key, out o)) { o = Sky.Surface(wp[i], wn); same[key] = o; }
+                if (!same.TryGetValue(key, out o)) { o = c.Field.SampleSurface(wp[i], wn); same[key] = o; }   // (now: metres to the sky)
                 open[i] = o;
                 if (Over()) yield return null;
             }
@@ -378,9 +388,9 @@ namespace CaveDarkness
             for (int t = 0; t < nt; t++)
             {
                 int a = wm.T[t * 3], b = wm.T[t * 3 + 1], d = wm.T[t * 3 + 2];
-                float o = (open[a] + open[b] + open[d]) / 3f;
+                float o = 0f;
                 var ctr = (wp[a] + wp[b] + wp[d]) / 3f;
-                float dd = c.Dist(ctr);
+                float dd = (open[a] + open[b] + open[d]) / 3f;
                 float l = Sky.Light(o, dd);
                 if (l >= Sky.Outside) { outside.Add(t * 3); continue; }
                 int k = Mathf.Clamp((int)(l * Bands), 0, Bands - 1);
