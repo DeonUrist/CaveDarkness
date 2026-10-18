@@ -38,6 +38,17 @@ namespace CaveDarkness
 
         public static void Invalidate() { foreach (var t in _t.Values) t.Applied = -1f; }
 
+        internal static bool OriginalUsage(Renderer r, out LightProbeUsage usage)
+        {
+            foreach (var t in _t.Values)
+            {
+                int i = t.R.IndexOf(r);
+                if (i >= 0) { usage = t.Orig[i]; return true; }
+            }
+            usage = default(LightProbeUsage);
+            return false;
+        }
+
         public static void RestoreAll()
         {
             foreach (var t in _t.Values) Release(t);
@@ -92,7 +103,7 @@ namespace CaveDarkness
             foreach (var kv in _t)
             {
                 var t = kv.Value;
-                if (t.Root == null) { _drop.Add(kv.Key); continue; }
+                if (t.Root == null) { Release(t); _drop.Add(kv.Key); continue; }
                 float target = 1f;
                 if (t.Seen && t.Cave != null) target = Sky.Light(t.Cave.OpenAt(t.Sample), t.Cave.Dist(t.Sample));
                 t.Cur += (target - t.Cur) * 0.45f;

@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Plugin.cs;MeshBank.cs;Sky.cs;Caves.cs;Dyn.cs;Exposure.cs;Diag.cs;TerrainDark.cs;SunCut.cs;Field.cs" />
+    <Compile Include="Plugin.cs;MeshBank.cs;Sky.cs;Caves.cs;Dyn.cs;Exposure.cs;Diag.cs;TerrainDark.cs;SunCut.cs;Field.cs;SaveLighting.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,7 +31,7 @@
     <Reference Include="PlayMaker"><HintPath>$(ManagedDir)\PlayMaker.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
-  <Target Name="DeployToGame" AfterTargets="Build">
+  <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(DeployToGame)' != 'false'">
     <Copy SourceFiles="$(OutDir)$(AssemblyName).dll;cavemeshes.bin" DestinationFolder="$(GameDir)\BepInEx\plugins\CaveDarkness" />
     <Message Importance="high" Text="Deployed $(AssemblyName).dll + cavemeshes.bin to $(GameDir)\BepInEx\plugins\CaveDarkness" />
   </Target>

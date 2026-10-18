@@ -49,6 +49,9 @@ writes warnings (for example a missing file).
 - **Moving things:** five times a second, NPCs, items, cars and the player (body, arms, held gear, Apocaplayer's character) inside a cave take the
   light of their spot and fade back outside.
 - **Floating origin:** the game shifts all world coordinates every 1,000 m; the mod keeps its positions in MapMagic's frame, so nothing goes stale.
+- **Save/load:** ES3 writes each renderer's original light-probe mode instead of the mod's temporary `CustomProvided` override. Older saves
+  containing that override recover the prefab's lighting mode on load, so items can brighten normally outside caves. Existing custom lighting
+  with a property block is preserved. This recovery also runs when cave darkness is disabled.
 
 ## Build
 
@@ -56,3 +59,17 @@ writes warnings (for example a missing file).
   (deploys the DLL + cavemeshes.bin to `BepInEx\plugins\CaveDarkness`).
 - Shader bundle: open `Unity/` in Unity 2020.3.49f1, menu **CaveDarkness > Build shader bundle** (see `Unity/README.md`).
 - `tools/export_cavemeshes.py` regenerates `cavemeshes.bin` from the game's assets.
+
+For a build without deployment: `dotnet build -c Release -p:DeployToGame=false`.
+
+## Save/load regression checks
+
+Build `dotnet build tests/SaveLighting.Tests.csproj -c Release`, then run
+`tests/bin/Release/net472/SaveLighting.Tests.exe "<game>/Apocalypter_Data/Managed/Assembly-CSharp-firstpass.dll"`.
+These checks inspect the installed game's ES3 serializer IL and run the production save/load patches with Harmony against managed renderer
+stand-ins. They cover ten consecutive cycles for mesh/skinned renderers, old-save recovery, original Off/BlendProbes/UseProxyVolume modes,
+unrelated property blocks, existing custom lighting, repeated loads into tracked objects, cave props and newly added renderers.
+
+In-game verification: save an item inside a dark cave, return to the menu and load, then carry it into daylight. Repeat several times, including
+with held gear and a previously affected save. Check that it brightens outside and darkens again on re-entry; also check loading with the mod
+disabled. The automated checks do not render a Unity scene.

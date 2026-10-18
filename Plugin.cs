@@ -25,7 +25,7 @@ namespace CaveDarkness
     {
         public const string GUID = "com.denis.apocalypter.cavedarkness";
         public const string NAME = "CaveDarkness";
-        public const string VERSION = "1.0.0";
+        public const string VERSION = "1.0.1";
 
         internal static ManualLogSource Log;
         internal static ConfigEntry<bool> Enabled, VerboseLog, TintTest;
@@ -59,6 +59,7 @@ namespace CaveDarkness
             DropOrphan("General", "Darkness");   // 0.1.0 setting, replaced by MaxDarkness
 
             var h = new Harmony(GUID);
+            SaveLighting.Install(h);
             var setProp = AccessTools.TypeByName("HutongGames.PlayMaker.Actions.SetProperty");
             if (setProp != null)
             {
